@@ -110,6 +110,36 @@ const generateRecommendations = (riskScores: any[]) => {
   return recommendations;
 };
 
+// @desc    Get all risk assessments (recent)
+// @route   GET /api/predictive/assessments
+export const getAllAssessments = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { page = '1', limit = '20' } = req.query;
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+
+    const assessments = await RiskAssessment.find()
+      .populate({
+        path: 'patientId',
+        populate: { path: 'userId', select: 'name email' },
+      })
+      .populate('assessedBy', 'name')
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .sort({ createdAt: -1 });
+
+    const total = await RiskAssessment.countDocuments();
+
+    res.json({
+      success: true,
+      data: assessments,
+      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Generate risk assessment for patient
 // @route   POST /api/predictive/assess/:patientId
 export const assessRisk = async (req: AuthRequest, res: Response): Promise<void> => {

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Patient } from '../../types';
+import WorkflowNav from '../../components/ui/WorkflowNav';
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -56,8 +57,8 @@ export default function PatientsPage() {
 
   const filtered = patients.filter((p) => {
     const user = p.userId as any;
-    const name = `${user?.firstName || ''} ${user?.lastName || ''}`.toLowerCase();
-    return name.includes(search.toLowerCase()) || p.bloodType?.toLowerCase().includes(search.toLowerCase());
+    const name = (user?.name || '').toLowerCase();
+    return name.includes(search.toLowerCase()) || p.bloodGroup?.toLowerCase().includes(search.toLowerCase());
   });
 
   if (loading) return <LoadingSpinner size="lg" className="h-96" />;
@@ -68,6 +69,7 @@ export default function PatientsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <WorkflowNav />
       <div>
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
           <Users className="w-7 h-7 text-primary-500" />
@@ -90,21 +92,21 @@ export default function PatientsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Patients" value={patients.length} icon={Users} color="blue" />
+        <StatCard title="Total Patients" value={patients.length} icon={Users} color="blue" />
         <StatCard
-          label="With Allergies"
+          title="With Allergies"
           value={patients.filter((p) => p.allergies && p.allergies.length > 0).length}
           icon={AlertCircle}
           color="red"
         />
         <StatCard
-          label="Chronic Conditions"
+          title="Chronic Conditions"
           value={patients.filter((p) => p.chronicConditions && p.chronicConditions.length > 0).length}
           icon={Heart}
-          color="amber"
+          color="orange"
         />
         <StatCard
-          label="On Medication"
+          title="On Medication"
           value={patients.filter((p) => p.medications && p.medications.length > 0).length}
           icon={Pill}
           color="green"
@@ -125,11 +127,11 @@ export default function PatientsPage() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold text-sm">
-                      {user?.firstName?.[0]}{user?.lastName?.[0]}
+                      {(user?.name || '?')[0]}
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-800">
-                        {user?.firstName} {user?.lastName}
+                        {user?.name || 'Unknown'}
                       </p>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
                         {patient.dateOfBirth && (
@@ -139,7 +141,7 @@ export default function PatientsPage() {
                           </span>
                         )}
                         {patient.gender && <span className="capitalize">{patient.gender}</span>}
-                        {patient.bloodType && <Badge variant="info">{patient.bloodType}</Badge>}
+                        {patient.bloodGroup && <Badge variant="info">{patient.bloodGroup}</Badge>}
                       </div>
                     </div>
                   </div>
@@ -198,14 +200,14 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
         </button>
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-xl">
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
+            {(user?.name || '?')[0]}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{user?.firstName} {user?.lastName}</h1>
+            <h1 className="text-2xl font-bold text-slate-800">{user?.name || 'Unknown'}</h1>
             <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
               {patient.dateOfBirth && <span>{new Date(patient.dateOfBirth).toLocaleDateString()}</span>}
               {patient.gender && <span className="capitalize">{patient.gender}</span>}
-              {patient.bloodType && <Badge variant="info">{patient.bloodType}</Badge>}
+              {patient.bloodGroup && <Badge variant="info">{patient.bloodGroup}</Badge>}
             </div>
           </div>
         </div>
@@ -231,7 +233,7 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
           <Card title="Emergency Contact">
             <div className="space-y-1 text-sm text-slate-600">
               <p className="font-medium text-slate-800">{patient.emergencyContact.name}</p>
-              <p>{patient.emergencyContact.relationship}</p>
+              <p>{patient.emergencyContact.relation}</p>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-slate-400" /> {patient.emergencyContact.phone}
               </div>
@@ -305,7 +307,7 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
                     <p className="text-xs text-slate-500">{med.dosage} — {med.frequency}</p>
                   </div>
                 </div>
-                <Badge variant={med.status === 'active' ? 'success' : 'default'}>{med.status}</Badge>
+                <Badge variant={med.endDate ? 'default' : 'success'}>{med.endDate ? 'completed' : 'active'}</Badge>
               </div>
             ))}
           </div>
@@ -326,7 +328,7 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
                     {entry.diagnosedDate ? new Date(entry.diagnosedDate).toLocaleDateString() : ''}
                   </span>
                 </div>
-                {entry.treatment && <p className="text-xs text-slate-500 mt-1">Treatment: {entry.treatment}</p>}
+                {entry.notes && <p className="text-xs text-slate-500 mt-1">{entry.notes}</p>}
                 <Badge variant={entry.status === 'resolved' ? 'success' : entry.status === 'active' ? 'warning' : 'default'}>
                   {entry.status}
                 </Badge>

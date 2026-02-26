@@ -17,12 +17,12 @@ import {
   DollarSign,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-
+import WorkflowNav from '../../components/ui/WorkflowNav';
 interface Appointment {
   _id: string;
-  patientId: { _id: string; userId: { firstName: string; lastName: string } } | string;
-  doctorId: { _id: string; firstName: string; lastName: string } | string;
-  dateTime: string;
+  patientId: { _id: string; userId: { name: string } } | string;
+  doctorId: { _id: string; name: string; specialization?: string } | string;
+  scheduledDate: string;
   duration: number;
   type: string;
   status: string;
@@ -33,32 +33,36 @@ interface Appointment {
 
 interface InsuranceClaim {
   _id: string;
-  patientId: { _id: string; userId: { firstName: string; lastName: string } } | string;
+  patientId: { _id: string; userId: { name: string } } | string;
   claimNumber: string;
   insuranceProvider: string;
-  claimType: string;
-  amount: number;
+  policyNumber: string;
+  totalAmount: number;
   status: string;
   diagnosisCodes: string[];
-  procedureCodes: string[];
-  serviceDate: string;
-  submissionDate: string;
+  diagnosisCodes: Array<{ code: string; description: string }> | string[];
+  procedureCodes: Array<{ code: string; description: string }> | string[];
+  submittedDate?: string;
   denialReason?: string;
 }
 
 interface LabResult {
   _id: string;
-  patientId: { _id: string; userId: { firstName: string; lastName: string } } | string;
+  patientId: { _id: string; userId: { name: string } } | string;
+  orderedBy: string;
   testName: string;
-  testCode: string;
   category: string;
-  value: number;
-  unit: string;
-  referenceRange: { min: number; max: number };
+  results: Array<{
+    parameter: string;
+    value: number | string;
+    unit: string;
+    referenceRange: string;
+    status: 'normal' | 'abnormal' | 'critical';
+  }>;
   status: string;
-  isAbnormal: boolean;
-  collectionDate: string;
-  resultDate: string;
+  collectedDate?: string;
+  completedDate?: string;
+  reviewedBy?: string;
   notes?: string;
 }
 
@@ -90,7 +94,7 @@ export default function WorkflowPage() {
 
   const fetchClaims = async () => {
     try {
-      const { data } = await api.get('/workflow/insurance-claims');
+      const { data } = await api.get('/workflow/claims');
       setClaims(data.data || []);
     } catch (err) {
       console.error(err);
@@ -99,7 +103,7 @@ export default function WorkflowPage() {
 
   const fetchLabs = async () => {
     try {
-      const { data } = await api.get('/workflow/lab-results');
+      const { data } = await api.get('/workflow/labs');
       setLabs(data.data || []);
     } catch (err) {
       console.error(err);
@@ -118,7 +122,7 @@ export default function WorkflowPage() {
 
   const reviewLabResult = async (id: string) => {
     try {
-      await api.put(`/workflow/lab-results/${id}/review`);
+      await api.put(`/workflow/labs/${id}`);
       toast.success('Lab result reviewed');
       fetchLabs();
     } catch (err) {
@@ -163,6 +167,7 @@ export default function WorkflowPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <WorkflowNav />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -220,7 +225,7 @@ export default function WorkflowPage() {
                         <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
                           <span className="flex items-center gap-1">
                             <CalendarDays className="w-3 h-3" />
-                            {new Date(appt.dateTime).toLocaleDateString()} at {new Date(appt.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(appt.scheduledDate).toLocaleDateString()} at {new Date(appt.scheduledDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
@@ -273,12 +278,12 @@ export default function WorkflowPage() {
                             <span>{claim.insuranceProvider}</span>
                             <span className="flex items-center gap-1">
                               <DollarSign className="w-3 h-3" />
-                              ${claim.amount?.toLocaleString()}
+                              ${claim.totalAmount?.toLocaleString()}
                             </span>
-                            <Badge variant="default">{claim.claimType?.replace('_', ' ')}</Badge>
+                            <Badge variant="default">{claim.status}</Badge>
                             <span className="flex items-center gap-1">
                               <CalendarDays className="w-3 h-3" />
-                              {new Date(claim.serviceDate).toLocaleDateString()}
+                              {claim.submittedDate ? new Date(claim.submittedDate).toLocaleDateString() : 'Not submitted'}
                             </span>
                           </div>
                         </div>
@@ -300,22 +305,22 @@ export default function WorkflowPage() {
                             <div>
                               <p className="text-xs font-semibold text-slate-500 uppercase">Diagnosis Codes</p>
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {claim.diagnosisCodes?.map((code, i) => (
-                                  <Badge key={i} variant="info">{code}</Badge>
+                                {claim.diagnosisCodes?.map((dc, i) => (
+                                  <Badge key={i} variant="info">{typeof dc === 'string' ? dc : dc.code}</Badge>
                                 ))}
                               </div>
                             </div>
                             <div>
                               <p className="text-xs font-semibold text-slate-500 uppercase">Procedure Codes</p>
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {claim.procedureCodes?.map((code, i) => (
-                                  <Badge key={i} variant="purple">{code}</Badge>
+                                {claim.procedureCodes?.map((pc, i) => (
+                                  <Badge key={i} variant="purple">{typeof pc === 'string' ? pc : pc.code}</Badge>
                                 ))}
                               </div>
                             </div>
                             <div>
                               <p className="text-xs font-semibold text-slate-500 uppercase">Submitted</p>
-                              <p className="text-slate-700">{new Date(claim.submissionDate).toLocaleDateString()}</p>
+                              <p className="text-slate-700">{claim.submittedDate ? new Date(claim.submittedDate).toLocaleDateString() : 'N/A'}</p>
                             </div>
                             {claim.denialReason && (
                               <div>
@@ -339,32 +344,38 @@ export default function WorkflowPage() {
           {activeTab === 'labs' && (
             <div className="space-y-4">
               {labs.length > 0 ? (
-                labs.map((lab) => (
+                labs.map((lab) => {
+                  const hasAbnormal = lab.results?.some((r) => r.status === 'abnormal' || r.status === 'critical');
+                  return (
                   <div key={lab._id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <FlaskConical className={`w-4 h-4 ${lab.isAbnormal ? 'text-red-500' : 'text-green-500'}`} />
+                          <FlaskConical className={`w-4 h-4 ${hasAbnormal ? 'text-red-500' : 'text-green-500'}`} />
                           <span className="text-sm font-semibold text-slate-800">{lab.testName}</span>
-                          {lab.isAbnormal && <Badge variant="danger">Abnormal</Badge>}
+                          {hasAbnormal && <Badge variant="danger">Abnormal</Badge>}
                           {statusBadge(lab.status)}
                         </div>
                         <div className="flex items-center flex-wrap gap-4 mt-2 text-xs text-slate-500">
-                          <span>Code: {lab.testCode}</span>
                           <Badge variant="default">{lab.category}</Badge>
                           <span className="flex items-center gap-1">
                             <CalendarDays className="w-3 h-3" />
-                            {new Date(lab.resultDate || lab.collectionDate).toLocaleDateString()}
+                            {new Date(lab.completedDate || lab.collectedDate || '').toLocaleDateString()}
                           </span>
                         </div>
-                        <div className="mt-3 flex items-center gap-3">
-                          <span className={`text-lg font-bold ${lab.isAbnormal ? 'text-red-600' : 'text-slate-800'}`}>
-                            {lab.value} {lab.unit}
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            Ref: {lab.referenceRange?.min} – {lab.referenceRange?.max} {lab.unit}
-                          </span>
-                        </div>
+                        {lab.results && lab.results.length > 0 && (
+                          <div className="mt-3 space-y-1">
+                            {lab.results.map((r, idx) => (
+                              <div key={idx} className="flex items-center gap-3 text-sm">
+                                <span className="text-slate-600 font-medium">{r.parameter}:</span>
+                                <span className={`font-bold ${r.status === 'abnormal' || r.status === 'critical' ? 'text-red-600' : 'text-slate-800'}`}>
+                                  {r.value} {r.unit}
+                                </span>
+                                <span className="text-xs text-slate-400">Ref: {r.referenceRange}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {lab.notes && (
                           <p className="mt-2 text-xs text-slate-500 italic">{lab.notes}</p>
                         )}
@@ -379,7 +390,8 @@ export default function WorkflowPage() {
                       )}
                     </div>
                   </div>
-                ))
+                  );
+                })
               ) : (
                 <EmptyState icon={FlaskConical} title="No lab results" description="Lab results will appear here when available." />
               )}
@@ -399,7 +411,7 @@ export default function WorkflowPage() {
 function NewAppointmentModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState({
     patientId: '',
-    dateTime: '',
+    scheduledDate: '',
     duration: 30,
     type: 'consultation',
     reason: '',
@@ -409,7 +421,7 @@ function NewAppointmentModal({ onClose, onCreated }: { onClose: () => void; onCr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.patientId || !form.dateTime || !form.reason) {
+    if (!form.patientId || !form.scheduledDate || !form.reason) {
       toast.error('Please fill all required fields');
       return;
     }
@@ -448,8 +460,8 @@ function NewAppointmentModal({ onClose, onCreated }: { onClose: () => void; onCr
               <label className="block text-sm font-medium text-slate-700 mb-1">Date & Time *</label>
               <input
                 type="datetime-local"
-                value={form.dateTime}
-                onChange={(e) => setForm({ ...form, dateTime: e.target.value })}
+                value={form.scheduledDate}
+                onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })}
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>

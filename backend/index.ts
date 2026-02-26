@@ -11,6 +11,7 @@ import predictiveRoutes from './routes/predictiveRoutes.js';
 import researchRoutes from './routes/researchRoutes.js';
 import workflowRoutes from './routes/workflowRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import pipelineRoutes from './routes/pipelineRoutes.js';
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.use('/api/predictive', predictiveRoutes);
 app.use('/api/research', researchRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/pipeline', pipelineRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
