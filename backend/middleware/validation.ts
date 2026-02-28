@@ -117,7 +117,10 @@ export const vitalSignsSchema = z.object({
 
 export const createClinicalNoteSchema = z.object({
   patientId: objectId,
-  noteType: z.enum(['consultation', 'follow_up', 'procedure', 'discharge', 'progress']),
+  noteType: z.enum([
+    'consultation', 'follow-up', 'emergency', 'procedure', 'discharge',
+    'progress_note', 'initial_consultation', 'follow_up', 'discharge_summary', 'procedure_note', 'progress',
+  ]),
   chiefComplaint: safeString,
   historyOfPresentIllness: z.string().max(10000).optional(),
   physicalExam: z.record(z.string(), z.string().max(2000)).optional(),
@@ -172,7 +175,7 @@ export const createAppointmentSchema = z.object({
   doctorId: objectId.optional(),
   scheduledDate: z.string().datetime(),
   duration: z.number().min(5).max(480).optional(),
-  type: z.enum(['follow_up', 'consultation', 'procedure', 'lab_review', 'emergency']),
+  type: z.enum(['consultation', 'follow-up', 'emergency', 'checkup', 'procedure', 'follow_up', 'lab_review']),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
   reason: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),

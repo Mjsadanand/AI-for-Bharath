@@ -106,14 +106,18 @@ const tools: ToolDefinition[] = [
         };
       }
 
+      // Map agent enum values to Mongoose enum values
+      const typeMap: Record<string, string> = { follow_up: 'follow-up', lab_review: 'consultation' };
+      const priorityMap: Record<string, string> = { routine: 'normal', emergency: 'urgent' };
+
       const appointment = await Appointment.create({
         patientId: input.patientId,
         doctorId: input.doctorId,
         scheduledDate,
         duration: input.duration,
-        type: input.type,
+        type: typeMap[input.type] || input.type,
         status: 'scheduled',
-        priority: input.priority,
+        priority: priorityMap[input.priority] || input.priority,
         reason: input.reason,
         notes: input.notes || '',
       });

@@ -154,16 +154,40 @@ const tools: ToolDefinition[] = [
       required: ['patientId', 'assessedBy', 'riskScores', 'overallRisk', 'confidenceLevel', 'predictions', 'recommendations', 'alerts'],
     },
     handler: async (input: any, _ctx: AgentContext) => {
+      // ── Map agent output to Mongoose schema ──
+      // overallRisk: agent sends {score, level} object but Mongoose expects a plain string
+      const overallRiskLevel = typeof input.overallRisk === 'object'
+        ? input.overallRisk.level
+        : input.overallRisk;
+
+      // recommendations: agent uses recommendation/evidence/routine|important, model uses description/evidenceBasis/low|medium
+      const priorityMap: Record<string, string> = { routine: 'low', important: 'medium', urgent: 'urgent' };
+      const mappedRecommendations = (input.recommendations || []).map((r: any) => ({
+        type: r.type,
+        description: r.recommendation || r.description,
+        priority: priorityMap[r.priority] || r.priority,
+        evidenceBasis: r.evidence || r.evidenceBasis || '',
+      }));
+
+      // predictions: agent sends riskFactors/preventiveActions, model expects preventable boolean
+      const mappedPredictions = (input.predictions || []).map((p: any) => ({
+        condition: p.condition,
+        probability: p.probability,
+        timeframe: p.timeframe,
+        preventable: p.preventable ?? ((p.preventiveActions?.length ?? 0) > 0),
+      }));
+
       const assessment = await RiskAssessment.create({
         patientId: input.patientId,
         assessedBy: input.assessedBy,
         riskScores: input.riskScores,
-        overallRisk: input.overallRisk,
+        overallRisk: overallRiskLevel,
         confidenceLevel: input.confidenceLevel,
-        predictions: input.predictions,
-        recommendations: input.recommendations,
-        alerts: input.alerts.map((a: any) => ({
-          ...a,
+        predictions: mappedPredictions,
+        recommendations: mappedRecommendations,
+        alerts: (input.alerts || []).map((a: any) => ({
+          type: a.type,
+          message: a.message,
           acknowledged: false,
         })),
       });
