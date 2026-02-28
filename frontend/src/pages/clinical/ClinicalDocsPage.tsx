@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { ClinicalNote } from '../../types';
+import WorkflowNav from '../../components/ui/WorkflowNav';
 
 export default function ClinicalDocsPage() {
   const [notes, setNotes] = useState<ClinicalNote[]>([]);
@@ -51,6 +52,7 @@ export default function ClinicalDocsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <WorkflowNav />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -184,35 +186,57 @@ function NoteCard({ note, onClick, expanded, onVerify }: {
 
       {expanded && (
         <div className="border-t border-slate-100 p-5 space-y-4 animate-fade-in">
-          {note.hpiText && (
+          {note.historyOfPresentIllness && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase mb-1">History of Present Illness</p>
-              <p className="text-sm text-slate-700">{note.hpiText}</p>
+              <p className="text-sm text-slate-700">{note.historyOfPresentIllness}</p>
             </div>
           )}
           {note.physicalExam && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Physical Exam</p>
-              <p className="text-sm text-slate-700">{note.physicalExam}</p>
-            </div>
-          )}
-          {note.assessment?.diagnoses?.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Assessment</p>
-              <div className="flex flex-wrap gap-2">
-                {note.assessment.diagnoses.map((d, i) => (
-                  <Badge key={i} variant="info">{d.condition} ({d.icdCode})</Badge>
-                ))}
-              </div>
-              {note.assessment.clinicalImpression && (
-                <p className="text-sm text-slate-700 mt-2">{note.assessment.clinicalImpression}</p>
+              {typeof note.physicalExam === 'string' ? (
+                <p className="text-sm text-slate-700">{note.physicalExam}</p>
+              ) : (
+                <div className="text-sm text-slate-700">
+                  {note.physicalExam.general && <p>{note.physicalExam.general}</p>}
+                  {note.physicalExam.findings?.length > 0 && (
+                    <ul className="list-disc list-inside mt-1">
+                      {note.physicalExam.findings.map((f: string, i: number) => <li key={i}>{f}</li>)}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
           )}
-          {note.plan && (
+          {note.assessment?.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Assessment</p>
+              <div className="flex flex-wrap gap-2">
+                {note.assessment.map((a, i) => (
+                  <Badge key={i} variant="info">{a.diagnosis} {a.icdCode ? `(${a.icdCode})` : ''} - {a.severity}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {note.plan?.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Plan</p>
-              <p className="text-sm text-slate-700">{note.plan}</p>
+              <ul className="text-sm text-slate-700 space-y-1">
+                {note.plan.map((p, i) => (
+                  <li key={i}>{p.treatment}{p.followUp ? ` — Follow up: ${p.followUp}` : ''}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {note.prescriptions && note.prescriptions.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Prescriptions</p>
+              <div className="flex flex-wrap gap-2">
+                {note.prescriptions.map((rx, i) => (
+                  <Badge key={i} variant="default">{rx.medication} {rx.dosage} {rx.frequency}</Badge>
+                ))}
+              </div>
             </div>
           )}
           {note.extractedEntities?.length > 0 && (
@@ -224,7 +248,7 @@ function NoteCard({ note, onClick, expanded, onVerify }: {
               <div className="flex flex-wrap gap-2">
                 {note.extractedEntities.map((entity, i) => (
                   <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-50 text-xs">
-                    <span className="font-medium text-slate-700">{entity.text}</span>
+                    <span className="font-medium text-slate-700">{entity.value}</span>
                     <span className="text-slate-400">({entity.type})</span>
                     <span className="text-primary-500">{Math.round(entity.confidence * 100)}%</span>
                   </span>
@@ -263,9 +287,9 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     patientId: '',
-    noteType: 'progress_note',
+    noteType: 'consultation',
     chiefComplaint: '',
-    hpiText: '',
+    historyOfPresentIllness: '',
     physicalExam: '',
     assessment: '',
     plan: '',
@@ -290,10 +314,10 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           patientId: formData.patientId,
           noteType: formData.noteType,
           chiefComplaint: formData.chiefComplaint,
-          hpiText: formData.hpiText,
-          physicalExam: formData.physicalExam,
-          assessment: { clinicalImpression: formData.assessment },
-          plan: formData.plan,
+          historyOfPresentIllness: formData.historyOfPresentIllness,
+          physicalExam: { findings: formData.physicalExam ? [formData.physicalExam] : [] },
+          assessment: formData.assessment ? [{ diagnosis: formData.assessment, severity: 'moderate' }] : [],
+          plan: formData.plan ? [{ treatment: formData.plan }] : [],
         });
       }
       toast.success('Clinical note created successfully');
@@ -361,11 +385,11 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
                   onChange={handleChange}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  <option value="progress_note">Progress Note</option>
-                  <option value="initial_consultation">Initial Consultation</option>
-                  <option value="follow_up">Follow Up</option>
-                  <option value="discharge_summary">Discharge Summary</option>
-                  <option value="procedure_note">Procedure Note</option>
+                  <option value="consultation">Consultation</option>
+                  <option value="follow-up">Follow Up</option>
+                  <option value="emergency">Emergency</option>
+                  <option value="procedure">Procedure</option>
+                  <option value="discharge">Discharge</option>
                 </select>
               </div>
             )}
@@ -387,8 +411,8 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">History of Present Illness</label>
                 <textarea
-                  name="hpiText"
-                  value={formData.hpiText}
+                  name="historyOfPresentIllness"
+                  value={formData.historyOfPresentIllness}
                   onChange={handleChange}
                   rows={3}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"

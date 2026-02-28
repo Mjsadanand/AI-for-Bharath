@@ -4,6 +4,7 @@ export interface User {
   email: string;
   role: 'doctor' | 'patient' | 'researcher' | 'admin';
   specialization?: string;
+  licenseNumber?: string;
   token: string;
 }
 
@@ -12,24 +13,24 @@ export interface Patient {
   userId: string | User;
   dateOfBirth: string;
   gender: string;
-  bloodType: string;
+  bloodGroup?: string;
   allergies: string[];
   chronicConditions: string[];
   emergencyContact: {
     name: string;
-    relationship: string;
+    relation: string;
     phone: string;
   };
-  insurance: {
+  insurance?: {
     provider: string;
     policyNumber: string;
-    groupNumber: string;
+    expiryDate: string;
   };
   medicalHistory: Array<{
     condition: string;
     diagnosedDate: string;
-    status: string;
-    notes: string;
+    status: 'active' | 'resolved' | 'managed';
+    notes?: string;
   }>;
   medications: Array<{
     name: string;
@@ -38,16 +39,20 @@ export interface Patient {
     startDate: string;
     endDate?: string;
     prescribedBy: string;
-    active: boolean;
   }>;
   vitalSigns: Array<{
     date: string;
-    bloodPressure: { systolic: number; diastolic: number };
-    heartRate: number;
-    temperature: number;
-    weight: number;
-    height: number;
-    oxygenSaturation: number;
+    bloodPressure?: { systolic: number; diastolic: number };
+    heartRate?: number;
+    temperature?: number;
+    weight?: number;
+    height?: number;
+    oxygenSaturation?: number;
+  }>;
+  riskFactors?: Array<{
+    factor: string;
+    severity: 'low' | 'moderate' | 'high';
+    identifiedDate: string;
   }>;
 }
 
@@ -56,33 +61,51 @@ export interface ClinicalNote {
   patientId: string | Patient;
   providerId: string | User;
   sessionDate: string;
-  noteType: string;
+  noteType: 'consultation' | 'follow-up' | 'emergency' | 'procedure' | 'discharge';
   chiefComplaint: string;
-  hpiText: string;
-  physicalExam: string;
-  assessment: {
-    diagnoses: Array<{
-      condition: string;
-      icdCode: string;
-      status: string;
-    }>;
-    clinicalImpression: string;
+  historyOfPresentIllness?: string;
+  physicalExam?: {
+    general?: string;
+    vitals?: string;
+    findings: string[];
   };
-  plan: string;
+  assessment: Array<{
+    diagnosis: string;
+    icdCode?: string;
+    severity: 'mild' | 'moderate' | 'severe';
+    notes?: string;
+  }>;
+  plan: Array<{
+    treatment: string;
+    medications?: string[];
+    followUp?: string;
+    referrals?: string[];
+    instructions?: string;
+  }>;
   extractedEntities: Array<{
-    text: string;
     type: string;
+    value: string;
     confidence: number;
   }>;
-  transcript: string;
-  verificationStatus: string;
+  transcript?: string;
+  verificationStatus: 'pending' | 'verified' | 'rejected' | 'amended';
+  verifiedBy?: string;
+  verifiedAt?: string;
+  prescriptions?: Array<{
+    medication: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    instructions?: string;
+  }>;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface RiskAssessment {
   _id: string;
-  patientId: string;
-  assessedBy: string;
+  patientId: string | Patient;
+  assessedBy?: string;
   riskScores: Array<{
     category: string;
     score: number;
@@ -108,7 +131,8 @@ export interface RiskAssessment {
     message: string;
     acknowledged: boolean;
   }>;
-  assessmentDate: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Appointment {
@@ -121,22 +145,33 @@ export interface Appointment {
   status: string;
   priority: string;
   reason: string;
-  notes: string;
+  notes?: string;
 }
 
 export interface InsuranceClaim {
   _id: string;
   patientId: string | Patient;
   providerId: string | User;
+  clinicalNoteId?: string;
   claimNumber: string;
-  serviceDate: string;
-  diagnosisCodes: string[];
-  procedureCodes: string[];
+  insuranceProvider: string;
+  policyNumber: string;
+  diagnosisCodes: Array<{ code: string; description: string }>;
+  procedureCodes: Array<{ code: string; description: string }>;
   totalAmount: number;
-  approvedAmount?: number;
-  status: string;
-  denialReason?: string;
+  status: 'draft' | 'submitted' | 'processing' | 'approved' | 'denied' | 'appealed';
   submittedDate?: string;
+  processedDate?: string;
+  approvedAmount?: number;
+  denialReason?: string;
+  notes?: string;
+  auditTrail: Array<{
+    action: string;
+    performedBy: string;
+    performedAt: string;
+    details?: string;
+  }>;
+  createdAt: string;
 }
 
 export interface LabResult {
@@ -145,31 +180,40 @@ export interface LabResult {
   orderedBy: string | User;
   testName: string;
   category: string;
-  status: string;
-  orderedDate: string;
-  resultDate?: string;
-  parameters: Array<{
-    name: string;
-    value: number;
+  results: Array<{
+    parameter: string;
+    value: number | string;
     unit: string;
-    referenceRange: { min: number; max: number };
-    status: string;
+    referenceRange: string;
+    status: 'normal' | 'abnormal' | 'critical';
   }>;
+  status: 'ordered' | 'collected' | 'processing' | 'completed' | 'reviewed';
+  collectedDate?: string;
+  completedDate?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  notes?: string;
+  createdAt: string;
 }
 
 export interface ResearchPaper {
   _id: string;
+  externalId?: string;
   title: string;
   authors: string[];
-  abstract: string;
-  journal: string;
   publicationDate: string;
-  doi: string;
+  journal: string;
+  abstract: string;
+  summary?: string;
+  keyFindings?: string[];
+  methodology?: string;
+  limitations?: string[];
   keywords: string[];
-  category: string;
   citations: number;
-  impactFactor: number;
+  url?: string;
   savedBy: string[];
+  category: string;
+  createdAt?: string;
 }
 
 export interface DashboardData {
@@ -191,5 +235,11 @@ export interface DashboardData {
     name: string;
     dosage: string;
     frequency: string;
+  }>;
+  trendingTopicsData?: Array<{
+    _id: string;
+    keyword: string;
+    count: number;
+    avgImpactFactor?: number;
   }>;
 }

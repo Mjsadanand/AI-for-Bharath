@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { RiskAssessment } from '../../types';
+import WorkflowNav from '../../components/ui/WorkflowNav';
 
 export default function PredictivePage() {
   const [assessments, setAssessments] = useState<RiskAssessment[]>([]);
@@ -32,7 +33,7 @@ export default function PredictivePage() {
   const fetchData = async () => {
     try {
       const [assessRes, alertRes] = await Promise.all([
-        api.get('/predictive'),
+        api.get('/predictive/assessments'),
         api.get('/predictive/alerts'),
       ]);
       setAssessments(assessRes.data.data || []);
@@ -74,6 +75,7 @@ export default function PredictivePage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <WorkflowNav />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -178,7 +180,7 @@ export default function PredictivePage() {
                           Patient: {typeof assessment.patientId === 'string' ? assessment.patientId.slice(-8) : 'N/A'}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {new Date(assessment.assessmentDate).toLocaleDateString()} · Confidence: {assessment.confidence}%
+                          {new Date(assessment.createdAt).toLocaleDateString()} · Confidence: {assessment.confidenceLevel ? (assessment.confidenceLevel * 100).toFixed(0) : 'N/A'}%
                         </p>
                       </div>
                       <Badge variant={

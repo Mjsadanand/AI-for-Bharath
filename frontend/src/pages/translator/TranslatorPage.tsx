@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import api from '../../lib/api';
 import { Badge } from '../../components/ui/Cards';
+import WorkflowNav from '../../components/ui/WorkflowNav';
 import {
   Languages,
   Send,
@@ -70,7 +71,7 @@ export default function TranslatorPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await api.post('/translator/medication-info', {
+      const { data } = await api.post('/translator/medication-instructions', {
         medicationName,
       });
       setMedResult(data.data);
@@ -89,6 +90,7 @@ export default function TranslatorPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <WorkflowNav />
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { ResearchPaper } from '../../types';
+import WorkflowNav from '../../components/ui/WorkflowNav';
 
 export default function ResearchPage() {
   const [papers, setPapers] = useState<ResearchPaper[]>([]);
@@ -36,7 +37,7 @@ export default function ResearchPage() {
       const params: Record<string, string> = {};
       if (query) params.query = query;
       if (cat) params.category = cat;
-      const { data } = await api.get('/research', { params });
+      const { data } = await api.get('/research/search', { params });
       setPapers(data.data || []);
     } catch (err) {
       console.error(err);
@@ -62,7 +63,7 @@ export default function ResearchPage() {
 
   const toggleSave = async (paperId: string) => {
     try {
-      const { data } = await api.post(`/research/${paperId}/save`);
+      const { data } = await api.post(`/research/paper/${paperId}/save`);
       toast.success(data.data.saved ? 'Paper saved' : 'Paper unsaved');
       fetchPapers(searchQuery, category);
     } catch (err) {
@@ -76,6 +77,7 @@ export default function ResearchPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <WorkflowNav />
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
@@ -177,9 +179,6 @@ export default function ResearchPage() {
                                 {paper.citations} citations
                               </span>
                             )}
-                            {paper.impactFactor > 0 && (
-                              <Badge variant="purple">IF: {paper.impactFactor}</Badge>
-                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -194,9 +193,9 @@ export default function ResearchPage() {
                               <Bookmark className="w-5 h-5 text-slate-400" />
                             )}
                           </button>
-                          {paper.doi && (
+                          {paper.url && (
                             <a
-                              href={`https://doi.org/${paper.doi}`}
+                              href={paper.url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="p-2 rounded-lg hover:bg-slate-100 transition-colors"

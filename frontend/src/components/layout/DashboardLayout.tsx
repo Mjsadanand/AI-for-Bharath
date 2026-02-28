@@ -18,6 +18,7 @@ import {
   ClipboardList,
   Users,
   Activity,
+  GitBranch,
 } from 'lucide-react';
 
 const roleNavItems: Record<string, Array<{ to: string; icon: React.ElementType; label: string }>> = {
@@ -29,6 +30,7 @@ const roleNavItems: Record<string, Array<{ to: string; icon: React.ElementType; 
     { to: '/predictive', icon: Brain, label: 'Predictive Engine' },
     { to: '/research', icon: BookOpen, label: 'Research' },
     { to: '/workflow', icon: ClipboardList, label: 'Workflow' },
+    { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
   ],
   patient: [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -44,6 +46,7 @@ const roleNavItems: Record<string, Array<{ to: string; icon: React.ElementType; 
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/patients', icon: Users, label: 'Users' },
     { to: '/workflow', icon: ClipboardList, label: 'Workflow' },
+    { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ],
 };

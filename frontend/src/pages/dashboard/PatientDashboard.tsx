@@ -21,7 +21,7 @@ export default function PatientDashboard() {
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const { data: res } = await api.get('/dashboard');
+        const { data: res } = await api.get('/dashboard/patient');
         setData(res.data);
       } catch (error) {
         console.error('Dashboard fetch error:', error);

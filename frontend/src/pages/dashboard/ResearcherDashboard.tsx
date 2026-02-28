@@ -9,7 +9,7 @@ export default function ResearcherDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/dashboard').then(({ data: res }) => setData(res.data)).catch(console.error).finally(() => setLoading(false));
+    api.get('/dashboard/researcher').then(({ data: res }) => setData(res.data)).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <LoadingSpinner size="lg" className="h-96" />;
