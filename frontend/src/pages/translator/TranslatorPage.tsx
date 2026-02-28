@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
+import type { TranslationResult, QAResult, MedicationInstruction } from '../../types';
 
 type TabType = 'translate' | 'ask' | 'medications';
 
@@ -30,16 +31,16 @@ export default function TranslatorPage() {
   // Translate state
   const [clinicalNoteId, setClinicalNoteId] = useState('');
   const [language, setLanguage] = useState('simple_english');
-  const [translationResult, setTranslationResult] = useState<Record<string, unknown> | null>(null);
+  const [translationResult, setTranslationResult] = useState<TranslationResult | null>(null);
 
   // Q&A state
   const [question, setQuestion] = useState('');
   const [medicalContext, setMedicalContext] = useState('');
-  const [qaResult, setQaResult] = useState<Record<string, unknown> | null>(null);
+  const [qaResult, setQaResult] = useState<QAResult | null>(null);
 
   // Medication state
   const [medicationName, setMedicationName] = useState('');
-  const [medResult, setMedResult] = useState<Record<string, unknown> | null>(null);
+  const [medResult, setMedResult] = useState<MedicationInstruction | null>(null);
 
   const handleTranslate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,7 +163,7 @@ export default function TranslatorPage() {
                         <p className="text-xs font-bold text-emerald-700 uppercase mb-2 flex items-center gap-1">
                           <Sparkles className="w-3 h-3" />Patient-Friendly Report
                         </p>
-                        <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{translationResult.translatedReport}</p>
+                        <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{translationResult.simplifiedText}</p>
                       </div>
                       {translationResult.riskWarnings?.length > 0 && (
                         <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200">
@@ -226,11 +227,11 @@ export default function TranslatorPage() {
                         <p className="text-xs font-bold text-blue-700 uppercase mb-2">Answer</p>
                         <p className="text-sm text-slate-700 leading-relaxed">{qaResult.answer}</p>
                       </div>
-                      {qaResult.relatedTerms?.length > 0 && (
+                      {qaResult.relatedTopics?.length > 0 && (
                         <div>
-                          <p className="text-xs font-bold text-slate-500 uppercase mb-2">Related Terms</p>
+                          <p className="text-xs font-bold text-slate-500 uppercase mb-2">Related Topics</p>
                           <div className="flex flex-wrap gap-2">
-                            {qaResult.relatedTerms.map((t: string, i: number) => (
+                            {qaResult.relatedTopics.map((t: string, i: number) => (
                               <Badge key={i} variant="info">{t}</Badge>
                             ))}
                           </div>
@@ -271,7 +272,7 @@ export default function TranslatorPage() {
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                       <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200">
                         <p className="text-lg font-bold text-slate-800 mb-1">{medResult.medication}</p>
-                        <p className="text-sm text-slate-600">{medResult.purpose}</p>
+                        <p className="text-sm text-slate-600">{medResult.simpleName}</p>
                       </div>
                       <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200">
                         <p className="text-xs font-bold text-blue-700 uppercase mb-2">How to Take</p>

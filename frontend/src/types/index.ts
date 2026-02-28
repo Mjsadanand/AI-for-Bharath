@@ -5,6 +5,7 @@ export interface User {
   role: 'doctor' | 'patient' | 'researcher' | 'admin';
   specialization?: string;
   licenseNumber?: string;
+  phone?: string;
   token: string;
 }
 
@@ -215,6 +216,39 @@ export interface ResearchPaper {
   savedBy: string[];
   category: string;
   createdAt?: string;
+}
+
+// ─── Translator Types ────────────────────────────────────────────────────────
+
+export interface TranslatedTerm {
+  original: string;
+  simplified: string;
+}
+
+export interface TranslationResult {
+  originalText: string;
+  simplifiedText: string;
+  translatedTerms: TranslatedTerm[];
+  medicationInstructions: string[];
+  riskWarnings: string[];
+  lifestyleRecommendations: string[];
+}
+
+export interface QAResult {
+  question: string;
+  answer: string;
+  relatedTopics: string[];
+  disclaimer: string;
+}
+
+export interface MedicationInstruction {
+  medication: string;
+  simpleName: string;
+  dosage: string;
+  frequency: string;
+  instructions: string;
+  sideEffects: string[];
+  warnings: string[];
 }
 
 export interface DashboardData {

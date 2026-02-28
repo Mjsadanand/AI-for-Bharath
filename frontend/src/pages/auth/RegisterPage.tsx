@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
 import {
-  Heart,
   Eye,
   EyeOff,
   ArrowRight,

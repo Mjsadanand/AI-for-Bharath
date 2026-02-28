@@ -25,7 +25,7 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, tra
 
 export default function ResearchPage() {
   const [papers, setPapers] = useState<ResearchPaper[]>([]);
-  const [trends, setTrends] = useState<Array<{ _id: string; keyword?: string; count: number }>>([]);
+  const [trends, setTrends] = useState<Array<{ _id: string; keyword?: string; count: number; avgImpactFactor?: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState('');
@@ -172,7 +172,7 @@ export default function ResearchPage() {
                 {trends.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {trends.map((trend, idx) => (
-                      <motion.div key={idx} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }} className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/80 border border-slate-200/80 hover:shadow-md hover:border-primary-200 transition-all cursor-pointer group" onClick={() => { setSearchQuery(trend._id || trend.keyword); setActiveTab('papers'); fetchPapers(trend._id || trend.keyword); }}>
+                      <motion.div key={idx} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.05 }} className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/80 border border-slate-200/80 hover:shadow-md hover:border-primary-200 transition-all cursor-pointer group" onClick={() => { setSearchQuery(trend._id || trend.keyword || ''); setActiveTab('papers'); fetchPapers(trend._id || trend.keyword); }}>
                         <div className="flex items-center gap-3 mb-2">
                           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-100 to-blue-100 flex items-center justify-center group-hover:from-primary-200 group-hover:to-blue-200 transition-all">
                             <TrendingUp className="w-4 h-4 text-primary-600" />

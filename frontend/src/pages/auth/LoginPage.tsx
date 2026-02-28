@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import {
-  Heart,
   Eye,
   EyeOff,
   ArrowRight,
@@ -97,9 +96,6 @@ export default function LoginPage() {
             transition={{ delay: 0.2, duration: 0.5 }}
             className="flex items-center gap-3 mb-10"
           >
-            <div className="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl flex items-center justify-center shadow-lg shadow-primary-500/30">
-              <Heart className="w-6 h-6 text-white" />
-            </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">CARENET AI</h1>
               <p className="text-[11px] text-slate-500 uppercase tracking-[0.25em]">Healthcare Platform</p>

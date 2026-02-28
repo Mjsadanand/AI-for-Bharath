@@ -482,7 +482,7 @@ export default function PipelinePage() {
                             className="overflow-hidden"
                           >
                             <div className="px-5 py-4 border-t border-slate-100">
-                              <StepDetail step={step.step} data={step.data} />
+                              <StepDetail step={step.step} data={step.data ?? {}} />
                             </div>
                           </motion.div>
                         )}
@@ -516,7 +516,7 @@ export default function PipelinePage() {
 }
 
 /* ─── Step Detail Sub-Component (enhanced) ─── */
-function StepDetail({ step, data }: { step: number; data: Record<string, unknown> }) {
+function StepDetail({ step, data }: { step: number; data: Record<string, any> }) {
   if (!data) return <p className="text-sm text-slate-400 italic">No data available</p>;
 
   const labelClass = 'font-medium text-slate-500 text-xs w-28 flex-shrink-0';
