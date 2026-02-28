@@ -16,11 +16,16 @@ export const getPatients = async (req: AuthRequest, res: Response): Promise<void
     let query: any = {};
     if (search && typeof search === 'string') {
       const escapedSearch = escapeRegex(search.substring(0, 200));
-      const userIds = await User.find({
-        role: 'patient',
-        name: { $regex: escapedSearch, $options: 'i' },
-      }).select('_id');
-      query.userId = { $in: userIds.map((u) => u._id) };
+      // Search by patientCode (PT-xxxx) OR by name
+      if (/^PT-/i.test(search)) {
+        query.patientCode = { $regex: escapedSearch, $options: 'i' };
+      } else {
+        const userIds = await User.find({
+          role: 'patient',
+          name: { $regex: escapedSearch, $options: 'i' },
+        }).select('_id');
+        query.userId = { $in: userIds.map((u) => u._id) };
+      }
     }
 
     const patients = await Patient.find(query)

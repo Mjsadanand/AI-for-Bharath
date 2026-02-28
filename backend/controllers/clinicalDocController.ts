@@ -115,7 +115,7 @@ export const getClinicalNotes = async (req: AuthRequest, res: Response): Promise
     }
 
     const notes = await ClinicalNote.find(query)
-      .populate('patientId', 'userId')
+      .populate({ path: 'patientId', select: '_id patientCode userId bloodGroup', populate: { path: 'userId', select: 'name email' } })
       .populate('providerId', 'name specialization')
       .skip((page - 1) * limit)
       .limit(limit)

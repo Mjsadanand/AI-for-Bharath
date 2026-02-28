@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IPatient extends Document {
+  patientCode: string;
   userId: mongoose.Types.ObjectId;
   dateOfBirth: Date;
   gender: 'male' | 'female' | 'other';
@@ -51,6 +52,7 @@ export interface IPatient extends Document {
 
 const patientSchema = new Schema<IPatient>(
   {
+    patientCode: { type: String, unique: true, index: true },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     dateOfBirth: { type: Date, required: true },
     gender: { type: String, enum: ['male', 'female', 'other'], required: true },
@@ -106,6 +108,19 @@ const patientSchema = new Schema<IPatient>(
   },
   { timestamps: true }
 );
+
+// Auto-generate short patient code (PT-0001, PT-0002, ...)
+patientSchema.pre('save', async function () {
+  if (!this.patientCode) {
+    const lastPatient = await mongoose.model<IPatient>('Patient').findOne({ patientCode: { $exists: true } }).sort({ patientCode: -1 }).select('patientCode').lean<Pick<IPatient, 'patientCode'>>();
+    let nextNum = 1;
+    if (lastPatient && lastPatient.patientCode) {
+      const match = lastPatient.patientCode.match(/PT-(\d+)/);
+      if (match) nextNum = parseInt(match[1], 10) + 1;
+    }
+    this.patientCode = `PT-${String(nextNum).padStart(4, '0')}`;
+  }
+});
 
 const Patient = mongoose.model<IPatient>('Patient', patientSchema);
 export default Patient;
