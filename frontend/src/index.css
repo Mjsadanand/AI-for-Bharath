@@ -2,6 +2,8 @@
 
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-hand: 'Caveat', cursive;
+    --font-grotesk: 'Space Grotesk', sans-serif;
   
   /* Primary — Medical Blue (trust, reliability) */
   --color-primary-50: #eff6ff;

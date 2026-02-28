@@ -14,6 +14,7 @@ import {
   Languages,
   BookOpen,
   Lock,
+  Home,
 } from 'lucide-react';
 
 const features = [
@@ -57,7 +58,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen flex bg-slate-50 relative">
+      {/* Home button */}
+      <Link
+        to="/"
+        className="fixed top-4 left-4 z-50 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/80 lg:bg-white/10 backdrop-blur-md border border-slate-200 lg:border-white/10 shadow-sm hover:shadow-md lg:hover:bg-white/20 transition-all group"
+        aria-label="Go home"
+      >
+        <Home className="w-4 h-4 text-slate-600 lg:text-white/80 group-hover:text-primary-500 lg:group-hover:text-white transition-colors" />
+        <span className="text-xs font-medium text-slate-600 lg:text-white/80 group-hover:text-primary-500 lg:group-hover:text-white transition-colors">Home</span>
+      </Link>
+
       {/* ── Left branding panel ── */}
       <div className="hidden lg:flex lg:w-[52%] bg-gradient-to-br from-[#0c1222] via-[#0f172a] to-[#1a2640] relative overflow-hidden">
         {/* Ambient light blobs */}
@@ -157,7 +168,7 @@ export default function LoginPage() {
       </div>
 
       {/* ── Right form panel ── */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
+      <div className="flex-1 flex items-start sm:items-center justify-center px-4 py-8 sm:p-6 lg:p-12 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -165,16 +176,13 @@ export default function LoginPage() {
           className="w-full max-w-[420px]"
         >
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-md">
-              <Heart className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-slate-800">CARENET AI</h1>
+          <div className="lg:hidden flex items-center gap-3 mb-6 sm:mb-8 justify-center">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-800">CARENET AI</h1>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8">
-            <div className="mb-6">
-              <h2 className="text-[22px] font-bold text-slate-800">Welcome back</h2>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 sm:p-8">
+            <div className="mb-5 sm:mb-6">
+              <h2 className="text-xl sm:text-[22px] font-bold text-slate-800">Welcome back</h2>
               <p className="text-slate-500 text-sm mt-1">Sign in to your secure account</p>
             </div>
 
@@ -237,7 +245,7 @@ export default function LoginPage() {
                 disabled={loading}
                 whileHover={!loading ? { scale: 1.01 } : undefined}
                 whileTap={!loading ? { scale: 0.98 } : undefined}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-semibold text-sm hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-primary-500/20"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-semibold text-sm hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-primary-500/20 active:scale-[0.98]"
               >
                 {loading ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -256,7 +264,7 @@ export default function LoginPage() {
               <span>256-bit encrypted connection</span>
             </div>
 
-            <div className="mt-5 pt-5 border-t border-slate-100 text-center">
+            <div className="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-100 text-center">
               <p className="text-sm text-slate-500">
                 Don't have an account?{' '}
                 <Link to="/register" className="text-primary-600 font-semibold hover:text-primary-700 transition-colors">
