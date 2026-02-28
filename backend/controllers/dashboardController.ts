@@ -7,6 +7,7 @@ import RiskAssessment from '../models/RiskAssessment.js';
 import InsuranceClaim from '../models/InsuranceClaim.js';
 import LabResult from '../models/LabResult.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
 
 // @desc    Get doctor dashboard stats
 // @route   GET /api/dashboard/doctor
@@ -62,7 +63,7 @@ export const getDoctorDashboard = async (req: AuthRequest, res: Response): Promi
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Dashboard operation failed');
   }
 };
 
@@ -114,7 +115,7 @@ export const getPatientDashboard = async (req: AuthRequest, res: Response): Prom
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Dashboard operation failed');
   }
 };
 
@@ -152,7 +153,7 @@ export const getAdminDashboard = async (req: AuthRequest, res: Response): Promis
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Dashboard operation failed');
   }
 };
 
@@ -175,6 +176,6 @@ export const getResearcherDashboard = async (req: AuthRequest, res: Response): P
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Dashboard operation failed');
   }
 };

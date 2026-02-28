@@ -2,6 +2,7 @@ import { Response } from 'express';
 import ClinicalNote from '../models/ClinicalNote.js';
 import Patient from '../models/Patient.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
 
 // Medical entity extraction simulation (in production, use NLP models)
 const extractMedicalEntities = (text: string) => {
@@ -89,7 +90,7 @@ export const createClinicalNote = async (req: AuthRequest, res: Response): Promi
 
     res.status(201).json({ success: true, data: clinicalNote });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to create clinical note');
   }
 };
 
@@ -97,15 +98,21 @@ export const createClinicalNote = async (req: AuthRequest, res: Response): Promi
 // @route   GET /api/clinical-docs
 export const getClinicalNotes = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
     const { patientId, status, noteType } = req.query;
 
     const query: any = {};
     if (req.user?.role === 'doctor') query.providerId = req.user._id;
-    if (patientId) query.patientId = patientId;
-    if (status) query.verificationStatus = status;
-    if (noteType) query.noteType = noteType;
+    if (patientId && typeof patientId === 'string') query.patientId = patientId;
+    if (status && typeof status === 'string') {
+      const allowedStatuses = ['pending', 'verified', 'rejected', 'amended'];
+      if (allowedStatuses.includes(status)) query.verificationStatus = status;
+    }
+    if (noteType && typeof noteType === 'string') {
+      const allowedTypes = ['consultation', 'follow_up', 'procedure', 'discharge', 'progress'];
+      if (allowedTypes.includes(noteType)) query.noteType = noteType;
+    }
 
     const notes = await ClinicalNote.find(query)
       .populate('patientId', 'userId')
@@ -122,7 +129,7 @@ export const getClinicalNotes = async (req: AuthRequest, res: Response): Promise
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch clinical notes');
   }
 };
 
@@ -142,7 +149,7 @@ export const getClinicalNote = async (req: AuthRequest, res: Response): Promise<
 
     res.json({ success: true, data: note });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch clinical note');
   }
 };
 
@@ -165,7 +172,11 @@ export const verifyClinicalNote = async (req: AuthRequest, res: Response): Promi
     } else if (action === 'amend') {
       note.verificationStatus = 'amended';
       if (amendments) {
-        Object.assign(note, amendments);
+        // Whitelist allowed amendment fields only
+        const { assessment, plan, historyOfPresentIllness } = amendments;
+        if (assessment !== undefined) note.assessment = assessment;
+        if (plan !== undefined) note.plan = plan;
+        if (historyOfPresentIllness !== undefined) note.historyOfPresentIllness = historyOfPresentIllness;
       }
     }
 
@@ -175,7 +186,7 @@ export const verifyClinicalNote = async (req: AuthRequest, res: Response): Promi
 
     res.json({ success: true, data: note });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to verify clinical note');
   }
 };
 
@@ -223,7 +234,7 @@ export const processTranscript = async (req: AuthRequest, res: Response): Promis
 
     res.json({ success: true, data: suggestedNote });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to process transcript');
   }
 };
 
@@ -237,6 +248,6 @@ export const getPatientNotes = async (req: AuthRequest, res: Response): Promise<
 
     res.json({ success: true, data: notes });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch patient notes');
   }
 };

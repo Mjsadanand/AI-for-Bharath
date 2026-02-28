@@ -5,6 +5,7 @@ import RiskAssessment from '../models/RiskAssessment.js';
 import Appointment from '../models/Appointment.js';
 import ResearchPaper from '../models/ResearchPaper.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
 
 // @desc    Run the full CARENET pipeline for a patient
 // @route   POST /api/pipeline/run/:patientId
@@ -278,7 +279,7 @@ export const runPipeline = async (req: AuthRequest, res: Response): Promise<void
     res.status(201).json({ success: true, data: pipelineResults });
   } catch (error: any) {
     console.error('Pipeline error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Pipeline operation failed');
   }
 };
 
@@ -339,7 +340,7 @@ export const getPipelineStatus = async (req: AuthRequest, res: Response): Promis
 
     res.json({ success: true, data: status });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Pipeline operation failed');
   }
 };
 

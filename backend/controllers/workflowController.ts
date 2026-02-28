@@ -4,6 +4,7 @@ import InsuranceClaim from '../models/InsuranceClaim.js';
 import LabResult from '../models/LabResult.js';
 import Patient from '../models/Patient.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
 
 // ============ APPOINTMENTS ============
 
@@ -41,7 +42,7 @@ export const createAppointment = async (req: AuthRequest, res: Response): Promis
 
     res.status(201).json({ success: true, data: appointment });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to create appointment');
   }
 };
 
@@ -66,8 +67,8 @@ export const getAppointments = async (req: AuthRequest, res: Response): Promise<
       query.scheduledDate = { $gte: dayStart, $lte: dayEnd };
     }
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = Math.max(1, parseInt(page as string));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string)));
 
     const appointments = await Appointment.find(query)
       .populate({
@@ -87,7 +88,7 @@ export const getAppointments = async (req: AuthRequest, res: Response): Promise<
       pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch appointments');
   }
 };
 
@@ -110,7 +111,7 @@ export const updateAppointment = async (req: AuthRequest, res: Response): Promis
 
     res.json({ success: true, data: appointment });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to update appointment');
   }
 };
 
@@ -146,7 +147,7 @@ export const createClaim = async (req: AuthRequest, res: Response): Promise<void
 
     res.status(201).json({ success: true, data: claim });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to create claim');
   }
 };
 
@@ -181,7 +182,7 @@ export const getClaims = async (req: AuthRequest, res: Response): Promise<void> 
       pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch claims');
   }
 };
 
@@ -213,7 +214,7 @@ export const updateClaim = async (req: AuthRequest, res: Response): Promise<void
     await claim.save();
     res.json({ success: true, data: claim });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to update claim');
   }
 };
 
@@ -236,7 +237,7 @@ export const createLabResult = async (req: AuthRequest, res: Response): Promise<
 
     res.status(201).json({ success: true, data: labResult });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to create lab result');
   }
 };
 
@@ -276,7 +277,7 @@ export const getLabResults = async (req: AuthRequest, res: Response): Promise<vo
       pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch lab results');
   }
 };
 
@@ -304,6 +305,6 @@ export const updateLabResult = async (req: AuthRequest, res: Response): Promise<
     await lab.save();
     res.json({ success: true, data: lab });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to update lab result');
   }
 };

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import RiskAssessment from '../models/RiskAssessment.js';
 import Patient from '../models/Patient.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
 
 // Simulated risk scoring (in production, use ML models)
 const calculateRiskScores = (patient: any) => {
@@ -115,8 +116,8 @@ const generateRecommendations = (riskScores: any[]) => {
 export const getAllAssessments = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { page = '1', limit = '20' } = req.query;
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = Math.max(1, parseInt(page as string));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string)));
 
     const assessments = await RiskAssessment.find()
       .populate({
@@ -136,7 +137,7 @@ export const getAllAssessments = async (req: AuthRequest, res: Response): Promis
       pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch risk assessments');
   }
 };
 
@@ -192,7 +193,7 @@ export const assessRisk = async (req: AuthRequest, res: Response): Promise<void>
 
     res.status(201).json({ success: true, data: assessment });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to assess patient risk');
   }
 };
 
@@ -206,7 +207,7 @@ export const getPatientAssessments = async (req: AuthRequest, res: Response): Pr
 
     res.json({ success: true, data: assessments });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch patient assessments');
   }
 };
 
@@ -225,7 +226,7 @@ export const getLatestAssessment = async (req: AuthRequest, res: Response): Prom
 
     res.json({ success: true, data: assessment });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch latest assessment');
   }
 };
 
@@ -242,16 +243,19 @@ export const acknowledgeAlert = async (req: AuthRequest, res: Response): Promise
     }
 
     const idx = parseInt(alertIndex as string);
-    if (idx >= 0 && idx < assessment.alerts.length) {
-      assessment.alerts[idx].acknowledged = true;
-      assessment.alerts[idx].acknowledgedBy = req.user!._id;
-      assessment.alerts[idx].acknowledgedAt = new Date();
-      await assessment.save();
+    if (isNaN(idx) || idx < 0 || idx >= assessment.alerts.length) {
+      res.status(400).json({ success: false, message: 'Invalid alert index' });
+      return;
     }
+
+    assessment.alerts[idx].acknowledged = true;
+    assessment.alerts[idx].acknowledgedBy = req.user!._id;
+    assessment.alerts[idx].acknowledgedAt = new Date();
+    await assessment.save();
 
     res.json({ success: true, data: assessment });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to acknowledge alert');
   }
 };
 
@@ -281,6 +285,6 @@ export const getActiveAlerts = async (req: AuthRequest, res: Response): Promise<
 
     res.json({ success: true, data: alerts });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch alerts');
   }
 };

@@ -52,7 +52,10 @@ const clinicalNoteSchema = new Schema<IClinicalNote>(
     sessionDate: { type: Date, default: Date.now },
     noteType: {
       type: String,
-      enum: ['consultation', 'follow-up', 'emergency', 'procedure', 'discharge'],
+      enum: [
+        'consultation', 'follow-up', 'emergency', 'procedure', 'discharge',
+        'progress_note', 'initial_consultation', 'follow_up', 'discharge_summary', 'procedure_note', 'progress',
+      ],
       required: true,
     },
     chiefComplaint: { type: String, required: true },
@@ -81,7 +84,7 @@ const clinicalNoteSchema = new Schema<IClinicalNote>(
     ],
     extractedEntities: [
       {
-        type: { type: String, enum: ['symptom', 'diagnosis', 'medication', 'procedure', 'lab_test'] },
+        type: { type: String, enum: ['symptom', 'diagnosis', 'medication', 'procedure', 'lab_test', 'vital_sign', 'condition', 'allergy'] },
         value: String,
         confidence: Number,
       },
