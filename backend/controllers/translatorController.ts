@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import ClinicalNote from '../models/ClinicalNote.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
 
 // Medical terminology dictionary for translation
 const medicalTerms: Record<string, string> = {
@@ -91,7 +92,7 @@ Prescriptions: ${note.prescriptions.map((p) => `${p.medication} ${p.dosage} ${p.
 
     res.json({ success: true, data: summary });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Translation operation failed');
   }
 };
 
@@ -119,7 +120,7 @@ export const askQuestion = async (req: AuthRequest, res: Response): Promise<void
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Translation operation failed');
   }
 };
 
@@ -146,7 +147,7 @@ export const getMedicationInstructions = async (req: AuthRequest, res: Response)
 
     res.json({ success: true, data: instructions });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Translation operation failed');
   }
 };
 

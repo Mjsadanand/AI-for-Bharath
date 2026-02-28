@@ -3,9 +3,10 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Patient from '../models/Patient.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
 
 const generateToken = (id: string): string => {
-  return jwt.sign({ id }, process.env.JWT_SECRET as string, { expiresIn: '30d' });
+  return jwt.sign({ id }, process.env.JWT_SECRET as string, { expiresIn: '4h' });
 };
 
 // @desc    Register user
@@ -53,7 +54,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Registration failed');
   }
 };
 
@@ -94,7 +95,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Login failed');
   }
 };
 
@@ -121,7 +122,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch profile');
   }
 };
 
@@ -138,6 +139,6 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
     res.json({ success: true, data: user });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Profile update failed');
   }
 };

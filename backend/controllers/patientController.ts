@@ -2,20 +2,23 @@ import { Response } from 'express';
 import Patient from '../models/Patient.js';
 import User from '../models/User.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
+import { escapeRegex } from '../middleware/security.js';
 
 // @desc    Get all patients (doctor/admin)
 // @route   GET /api/patients
 export const getPatients = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 10));
     const search = req.query.search as string;
 
     let query: any = {};
-    if (search) {
+    if (search && typeof search === 'string') {
+      const escapedSearch = escapeRegex(search.substring(0, 200));
       const userIds = await User.find({
         role: 'patient',
-        name: { $regex: search, $options: 'i' },
+        name: { $regex: escapedSearch, $options: 'i' },
       }).select('_id');
       query.userId = { $in: userIds.map((u) => u._id) };
     }
@@ -34,7 +37,7 @@ export const getPatients = async (req: AuthRequest, res: Response): Promise<void
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch patients');
   }
 };
 
@@ -53,7 +56,7 @@ export const getPatient = async (req: AuthRequest, res: Response): Promise<void>
 
     res.json({ success: true, data: patient });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch patient');
   }
 };
 
@@ -72,7 +75,7 @@ export const getMyProfile = async (req: AuthRequest, res: Response): Promise<voi
 
     res.json({ success: true, data: patient });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to fetch profile');
   }
 };
 
@@ -95,7 +98,7 @@ export const updatePatient = async (req: AuthRequest, res: Response): Promise<vo
 
     res.json({ success: true, data: patient });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to update patient');
   }
 };
 
@@ -114,7 +117,7 @@ export const addVitalSigns = async (req: AuthRequest, res: Response): Promise<vo
 
     res.status(201).json({ success: true, data: patient.vitalSigns });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to add vital signs');
   }
 };
 
@@ -133,6 +136,6 @@ export const addMedication = async (req: AuthRequest, res: Response): Promise<vo
 
     res.json({ success: true, data: patient.medications });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Failed to add medication');
   }
 };

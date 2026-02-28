@@ -5,24 +5,26 @@ import {
   createLabResult, getLabResults, updateLabResult,
 } from '../controllers/workflowController.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { validateObjectIdParam } from '../middleware/security.js';
+import { validate, createAppointmentSchema, createClaimSchema } from '../middleware/validation.js';
 
 const router = Router();
 
 router.use(protect);
 
 // Appointments
-router.post('/appointments', createAppointment);
+router.post('/appointments', validate(createAppointmentSchema), createAppointment);
 router.get('/appointments', getAppointments);
-router.put('/appointments/:id', updateAppointment);
+router.put('/appointments/:id', validateObjectIdParam(), updateAppointment);
 
 // Insurance Claims
-router.post('/claims', authorize('doctor', 'admin'), createClaim);
+router.post('/claims', authorize('doctor', 'admin'), validate(createClaimSchema), createClaim);
 router.get('/claims', authorize('doctor', 'admin'), getClaims);
-router.put('/claims/:id', authorize('doctor', 'admin'), updateClaim);
+router.put('/claims/:id', authorize('doctor', 'admin'), validateObjectIdParam(), updateClaim);
 
 // Lab Results
 router.post('/labs', authorize('doctor', 'admin'), createLabResult);
 router.get('/labs', getLabResults);
-router.put('/labs/:id', authorize('doctor', 'admin'), updateLabResult);
+router.put('/labs/:id', authorize('doctor', 'admin'), validateObjectIdParam(), updateLabResult);
 
 export default router;

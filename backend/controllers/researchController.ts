@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import ResearchPaper from '../models/ResearchPaper.js';
 import { AuthRequest } from '../middleware/auth.js';
+import { handleControllerError } from '../middleware/errorHandler.js';
 
 // Sample research papers data (simulates PubMed integration)
 const samplePapers = [
@@ -170,7 +171,7 @@ export const searchPapers = async (req: AuthRequest, res: Response): Promise<voi
       pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Research operation failed');
   }
 };
 
@@ -185,7 +186,7 @@ export const getPaper = async (req: AuthRequest, res: Response): Promise<void> =
     }
     res.json({ success: true, data: paper });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Research operation failed');
   }
 };
 
@@ -211,7 +212,7 @@ export const savePaper = async (req: AuthRequest, res: Response): Promise<void> 
     await paper.save();
     res.json({ success: true, data: { saved: !isSaved } });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Research operation failed');
   }
 };
 
@@ -259,7 +260,7 @@ export const getTrends = async (req: AuthRequest, res: Response): Promise<void> 
 
     res.json({ success: true, data: trends });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Research operation failed');
   }
 };
 
@@ -287,7 +288,7 @@ export const compareEvidence = async (req: AuthRequest, res: Response): Promise<
 
     res.json({ success: true, data: comparison });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    handleControllerError(res, error, 'Research operation failed');
   }
 };
 
