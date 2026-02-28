@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../lib/api';
-import { StatCard, Card, Badge, LoadingSpinner, EmptyState } from '../../components/ui/Cards';
+import { StatCard, Card, Badge, EmptyState, PageHeader, Skeleton, ProgressBar } from '../../components/ui/Cards';
 import {
   Calendar,
   Activity,
@@ -12,6 +13,9 @@ import {
   Clock,
 } from 'lucide-react';
 import type { DashboardData } from '../../types';
+
+const stagger = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } };
+const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
 
 export default function PatientDashboard() {
   const { user } = useAuth();
@@ -32,21 +36,34 @@ export default function PatientDashboard() {
     fetchDashboard();
   }, []);
 
-  if (loading) return <LoadingSpinner size="lg" className="h-96" />;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-16 w-72" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32" />)}
+        </div>
+      </div>
+    );
+  }
 
   const stats = data?.stats || {};
   const assessment = data?.latestAssessment;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Welcome, {user?.name}</h1>
-        <p className="text-slate-500 mt-1">Your health overview and upcoming schedule</p>
-      </div>
+    <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-6">
+      {/* Header */}
+      <motion.div variants={fadeUp}>
+        <PageHeader
+          icon={Heart}
+          title={`Welcome, ${user?.name || 'Patient'}`}
+          description="Your health overview and upcoming schedule"
+          badge="Patient Portal"
+        />
+      </motion.div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Upcoming Appointments" value={stats.upcomingAppointments || 0} icon={Calendar} color="blue" />
         <StatCard
           title="Health Score"
@@ -57,33 +74,39 @@ export default function PatientDashboard() {
         />
         <StatCard title="Pending Lab Results" value={stats.pendingLabResults || 0} icon={TestTube} color="purple" />
         <StatCard title="Active Medications" value={stats.activeMedications || 0} icon={Pill} color="orange" />
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Upcoming Appointments */}
-        <Card title="Upcoming Appointments" className="lg:col-span-2">
+        <Card title="Upcoming Appointments" icon={Calendar} className="lg:col-span-2">
           {data?.upcomingAppointments && data.upcomingAppointments.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {data.upcomingAppointments.map((apt, idx) => (
-                <div key={apt._id || idx} className="flex items-center gap-4 p-3 rounded-lg bg-slate-50">
-                  <div className="w-12 h-12 rounded-xl bg-primary-100 flex flex-col items-center justify-center">
-                    <span className="text-xs font-bold text-primary-700">
+                <motion.div
+                  key={apt._id || idx}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="flex items-center gap-4 p-3 rounded-xl bg-slate-50/80 border border-slate-100 hover:border-slate-200 transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-100 to-primary-50 flex flex-col items-center justify-center">
+                    <span className="text-[10px] font-bold text-primary-600 uppercase">
                       {new Date(apt.scheduledDate).toLocaleDateString('en-US', { month: 'short' })}
                     </span>
-                    <span className="text-lg font-bold text-primary-800 -mt-1">
+                    <span className="text-lg font-bold text-primary-800 -mt-0.5">
                       {new Date(apt.scheduledDate).getDate()}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700">{apt.reason || apt.type}</p>
-                    <p className="text-xs text-slate-500 flex items-center gap-1">
+                    <p className="text-sm font-semibold text-slate-700">{apt.reason || apt.type}</p>
+                    <p className="text-xs text-slate-400 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {new Date(apt.scheduledDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                       {' · '}{apt.duration} minutes
                     </p>
                   </div>
-                  <Badge variant={apt.status === 'confirmed' ? 'success' : 'warning'}>{apt.status}</Badge>
-                </div>
+                  <Badge variant={apt.status === 'confirmed' ? 'success' : 'warning'} dot>{apt.status}</Badge>
+                </motion.div>
               ))}
             </div>
           ) : (
@@ -92,45 +115,38 @@ export default function PatientDashboard() {
         </Card>
 
         {/* Health Risk */}
-        <Card title="Health Assessment">
+        <Card title="Health Assessment" icon={Activity}>
           {assessment ? (
             <div className="space-y-4">
-              <div className="text-center p-4 rounded-xl bg-slate-50">
-                <p className="text-sm text-slate-500 mb-1">Overall Risk Level</p>
+              <div className="text-center p-4 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-100">
+                <p className="text-xs text-slate-500 mb-2 font-medium">Overall Risk Level</p>
                 <Badge
                   variant={assessment.overallRisk === 'low' ? 'success' : assessment.overallRisk === 'moderate' ? 'warning' : 'danger'}
                   size="md"
                 >
                   {assessment.overallRisk?.toUpperCase()}
                 </Badge>
-                <p className="text-xs text-slate-400 mt-2">Confidence: {assessment.confidence}%</p>
+                <p className="text-[11px] text-slate-400 mt-2">Confidence: {assessment.confidence}%</p>
               </div>
 
               {assessment.riskScores?.map((score, idx) => (
-                <div key={idx}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-600 capitalize">{score.category}</span>
-                    <span className="font-medium text-slate-800">{score.score}/100</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        score.score < 30 ? 'bg-emerald-500' :
-                        score.score < 60 ? 'bg-amber-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${score.score}%` }}
-                    />
-                  </div>
-                </div>
+                <ProgressBar
+                  key={idx}
+                  value={score.score}
+                  max={100}
+                  label={score.category}
+                  showPercentage
+                  color={score.score < 30 ? 'green' : score.score < 60 ? 'yellow' : 'red'}
+                />
               ))}
 
               {assessment.recommendations && assessment.recommendations.length > 0 && (
                 <div className="pt-3 border-t border-slate-100">
-                  <p className="text-xs font-medium text-slate-500 uppercase mb-2">Recommendations</p>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Recommendations</p>
                   {assessment.recommendations.slice(0, 3).map((rec, idx) => (
                     <div key={idx} className="flex items-start gap-2 mb-2">
                       <Shield className="w-3.5 h-3.5 text-primary-500 mt-0.5 flex-shrink-0" />
-                      <p className="text-xs text-slate-600">{rec.description}</p>
+                      <p className="text-xs text-slate-600 leading-relaxed">{rec.description}</p>
                     </div>
                   ))}
                 </div>
@@ -140,24 +156,24 @@ export default function PatientDashboard() {
             <EmptyState icon={Activity} title="No assessment yet" description="Your health assessment will appear here." />
           )}
         </Card>
-      </div>
+      </motion.div>
 
       {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Lab Results */}
-        <Card title="Recent Lab Results">
+        <Card title="Recent Lab Results" icon={TestTube}>
           {data?.recentLabResults && data.recentLabResults.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {data.recentLabResults.map((lab, idx) => (
-                <div key={lab._id || idx} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
-                  <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <TestTube className="w-5 h-5 text-purple-600" />
+                <div key={lab._id || idx} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center">
+                    <TestTube className="w-4 h-4 text-purple-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700">{lab.testName}</p>
-                    <p className="text-xs text-slate-500">{lab.category}</p>
+                    <p className="text-sm font-semibold text-slate-700">{lab.testName}</p>
+                    <p className="text-xs text-slate-400">{lab.category}</p>
                   </div>
-                  <Badge variant={lab.status === 'completed' ? 'success' : lab.status === 'reviewed' ? 'info' : 'warning'}>
+                  <Badge variant={lab.status === 'completed' ? 'success' : lab.status === 'reviewed' ? 'info' : 'warning'} dot>
                     {lab.status}
                   </Badge>
                 </div>
@@ -169,19 +185,19 @@ export default function PatientDashboard() {
         </Card>
 
         {/* Current Medications */}
-        <Card title="Current Medications">
+        <Card title="Current Medications" icon={Pill}>
           {data?.currentMedications && data.currentMedications.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {data.currentMedications.map((med, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
-                  <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                    <Pill className="w-5 h-5 text-orange-600" />
+                <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-100 to-amber-50 flex items-center justify-center">
+                    <Pill className="w-4 h-4 text-orange-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-700">{med.name}</p>
-                    <p className="text-xs text-slate-500">{med.dosage} · {med.frequency}</p>
+                    <p className="text-sm font-semibold text-slate-700">{med.name}</p>
+                    <p className="text-xs text-slate-400">{med.dosage} · {med.frequency}</p>
                   </div>
-                  <Badge variant="success">Active</Badge>
+                  <Badge variant="success" dot>Active</Badge>
                 </div>
               ))}
             </div>
@@ -189,7 +205,7 @@ export default function PatientDashboard() {
             <EmptyState icon={Pill} title="No medications" description="Your medications will appear here." />
           )}
         </Card>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useState, type ReactNode } from 'react';
 import api from '../lib/api';
 import type { User } from '../types';
 
@@ -21,6 +21,7 @@ interface RegisterData {
   bloodType?: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function getInitialUser(): User | null {

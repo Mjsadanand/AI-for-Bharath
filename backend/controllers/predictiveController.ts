@@ -266,7 +266,7 @@ export const getActiveAlerts = async (req: AuthRequest, res: Response): Promise<
     const assessments = await RiskAssessment.find({
       'alerts.acknowledged': false,
     })
-      .populate('patientId', 'userId')
+      .populate('patientId', 'userId patientCode')
       .sort({ assessmentDate: -1 })
       .limit(20);
 

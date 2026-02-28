@@ -36,7 +36,7 @@ export const getDoctorDashboard = async (req: AuthRequest, res: Response): Promi
       ClinicalNote.countDocuments({ providerId: doctorId, verificationStatus: 'pending' }),
       RiskAssessment.countDocuments({ assessedBy: doctorId, 'alerts.acknowledged': false }),
       ClinicalNote.find({ providerId: doctorId })
-        .populate({ path: 'patientId', populate: { path: 'userId', select: 'name' } })
+        .populate({ path: 'patientId', populate: { path: 'userId', select: 'name' }, select: 'patientCode userId' })
         .sort({ createdAt: -1 })
         .limit(5),
       Appointment.find({
@@ -44,7 +44,7 @@ export const getDoctorDashboard = async (req: AuthRequest, res: Response): Promi
         scheduledDate: { $gte: today },
         status: { $in: ['scheduled', 'confirmed'] },
       })
-        .populate({ path: 'patientId', populate: { path: 'userId', select: 'name avatar' } })
+        .populate({ path: 'patientId', populate: { path: 'userId', select: 'name avatar' }, select: 'patientCode userId' })
         .sort({ scheduledDate: 1 })
         .limit(5),
     ]);

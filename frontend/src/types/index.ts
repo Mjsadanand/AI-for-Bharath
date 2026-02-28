@@ -10,6 +10,7 @@ export interface User {
 
 export interface Patient {
   _id: string;
+  patientCode?: string;
   userId: string | User;
   dateOfBirth: string;
   gender: string;
