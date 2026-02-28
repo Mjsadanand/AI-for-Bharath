@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CARENET AI</string>
+    <string name="title_activity_main">CARENET AI</string>
+    <string name="package_name">com.carenet.ai</string>
+    <string name="custom_url_scheme">com.carenet.ai</string>
+</resources>

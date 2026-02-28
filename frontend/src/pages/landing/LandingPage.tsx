@@ -13,7 +13,6 @@ import {
   ChevronRight,
   ArrowRight,
   Check,
-  Star,
   Menu,
   X,
   ChevronDown,
@@ -23,7 +22,6 @@ import {
   BarChart3,
   Clock,
   Users,
-  Stethoscope,
   MousePointer2,
 } from 'lucide-react';
 

@@ -136,7 +136,7 @@ export default function PatientDashboard() {
                   max={100}
                   label={score.category}
                   showPercentage
-                  color={score.score < 30 ? 'green' : score.score < 60 ? 'yellow' : 'red'}
+                  color={score.score < 30 ? 'green' : score.score < 60 ? 'orange' : 'red'}
                 />
               ))}
 

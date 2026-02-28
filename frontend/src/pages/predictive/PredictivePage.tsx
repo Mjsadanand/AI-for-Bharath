@@ -25,7 +25,7 @@ const inputClass = 'flex-1 px-4 py-2.5 bg-slate-50/80 border border-slate-200 ro
 
 export default function PredictivePage() {
   const [assessments, setAssessments] = useState<RiskAssessment[]>([]);
-  const [alerts, setAlerts] = useState<Array<{ type: string; message: string; acknowledged: boolean; assessmentId?: string; alertIndex?: number }>>([]);
+  const [alerts, setAlerts] = useState<Array<{ type: string; message: string; acknowledged: boolean; assessmentId?: string; alertIndex?: number; overallRisk?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'assessments' | 'alerts'>('assessments');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -133,7 +133,7 @@ export default function PredictivePage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-slate-700">Patient: {typeof assessment.patientId === 'string' ? assessment.patientId.slice(-8) : 'N/A'}</p>
-                            <p className="text-xs text-slate-500">{new Date(assessment.createdAt).toLocaleDateString()} · Confidence: {assessment.confidenceLevel ? (assessment.confidenceLevel * 100).toFixed(0) : 'N/A'}%</p>
+                            <p className="text-xs text-slate-500">{new Date(assessment.createdAt).toLocaleDateString()} · Confidence: {assessment.confidence ? (assessment.confidence * 100).toFixed(0) : 'N/A'}%</p>
                           </div>
                           <Badge dot variant={assessment.overallRisk === 'critical' ? 'danger' : assessment.overallRisk === 'high' ? 'warning' : assessment.overallRisk === 'moderate' ? 'info' : 'success'} size="md">
                             {assessment.overallRisk?.toUpperCase()} RISK
@@ -155,7 +155,7 @@ export default function PredictivePage() {
                                           <span className="text-slate-600 capitalize font-medium">{score.category}</span>
                                           <span className="font-bold text-slate-800">{score.score}/100</span>
                                         </div>
-                                        <ProgressBar value={score.score} max={100} color={score.score < 30 ? 'green' : score.score < 60 ? 'yellow' : 'red'} />
+                                        <ProgressBar value={score.score} max={100} color={score.score < 30 ? 'green' : score.score < 60 ? 'orange' : 'red'} />
                                         <div className="flex flex-wrap gap-1 mt-2">
                                           {score.factors?.map((f, i) => (
                                             <span key={i} className="text-xs px-2 py-0.5 bg-white rounded-lg text-slate-500 border border-slate-100">{f}</span>
@@ -237,7 +237,7 @@ export default function PredictivePage() {
                             <Badge variant={alert.type === 'critical' ? 'danger' : 'warning'}>{alert.type}</Badge>
                           </div>
                         </div>
-                        <button onClick={() => acknowledgeAlert(alert.assessmentId, idx)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all flex-shrink-0">
+                        <button onClick={() => acknowledgeAlert(alert.assessmentId ?? '', idx)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all flex-shrink-0">
                           <CheckCircle className="w-3.5 h-3.5" />Acknowledge
                         </button>
                       </motion.div>
