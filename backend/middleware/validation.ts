@@ -36,7 +36,6 @@ const phoneNumber = z
 
 export const registerSchema = z
   .object({
-    name: safeName,
     email,
     password: z
       .string()
@@ -46,9 +45,10 @@ export const registerSchema = z
       .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
       .regex(/[0-9]/, 'Password must contain at least one number')
       .regex(/[^a-zA-Z0-9]/, 'Password must contain at least one special character'),
+    name: safeName.optional(),
     role: z.enum(['doctor', 'patient', 'researcher'], {
       error: 'Role must be doctor, patient, or researcher',
-    }), // 'admin' excluded from self-registration
+    }).optional(), // Optional — defaults handled by controller
     specialization: z.string().max(100).optional(),
     licenseNumber: z.string().max(50).optional(),
     phone: phoneNumber,
@@ -75,6 +75,37 @@ export const updateProfileSchema = z.object({
   phone: phoneNumber,
   specialization: z.string().max(100).optional(),
 });
+
+// ── Google OAuth Schemas ────────────────────────────────────────────────────
+
+export const googleAuthSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required').max(5000),
+});
+
+export const selectRoleSchema = z.object({
+  role: z.enum(['doctor', 'patient', 'researcher'], {
+    error: 'Role must be doctor, patient, or researcher',
+  }),
+});
+
+export const completeProfileSchema = z
+  .object({
+    name: safeName.optional(),
+    phone: phoneNumber,
+    specialization: z.string().max(100).optional(),
+    licenseNumber: z.string().max(50).optional(),
+    dateOfBirth: z.string().datetime().optional().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
+    gender: z.enum(['male', 'female', 'other']).optional(),
+    bloodGroup: z.string().max(10).optional(),
+    emergencyContact: z
+      .object({
+        name: z.string().max(100),
+        phone: z.string().max(20),
+        relation: z.string().max(50),
+      })
+      .optional(),
+  })
+  .strict();
 
 // ── Patient Schemas ─────────────────────────────────────────────────────────
 

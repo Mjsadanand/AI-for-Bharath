@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../lib/api';
 import { Badge, EmptyState, PageHeader, Skeleton } from '../../components/ui/Cards';
@@ -16,6 +16,9 @@ import {
   Sparkles,
   Send,
   X,
+  Upload,
+  Loader2,
+  StopCircle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { ClinicalNote, Patient, User } from '../../types';
@@ -329,6 +332,14 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const [mode, setMode] = useState<'form' | 'transcript'>('form');
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [dragActive, setDragActive] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     patientId: '',
     noteType: 'consultation',
@@ -340,10 +351,172 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     transcript: '',
   });
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+      if (mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // ─── Transcription via backend (Groq Whisper) ──────────────────
+  const transcribeAudioBlob = async (blob: Blob, filename: string) => {
+    setTranscribing(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append('audio', blob, filename);
+
+      const { data } = await api.post('/clinical-docs/transcribe', uploadData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+      });
+
+      if (data.success && data.data.transcript) {
+        setFormData(prev => ({ ...prev, transcript: data.data.transcript }));
+        toast.success(
+          data.data.duration
+            ? `Transcribed ${Math.round(data.data.duration)}s of audio`
+            : 'Audio transcribed successfully'
+        );
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Transcription failed';
+      toast.error(msg);
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  // ─── Live Recording (MediaRecorder + Web Speech API) ───────────
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : '';
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+        if (audioBlob.size > 0) {
+          // Send to Groq Whisper for high-accuracy transcription
+          transcribeAudioBlob(audioBlob, 'recording.webm');
+        }
+      };
+
+      mediaRecorder.start(1000);
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+
+      // Start Web Speech API for real-time interim preview
+      startSpeechRecognition();
+    } catch {
+      toast.error('Microphone access denied. Check browser permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecording(false);
+  };
+
+  const startSpeechRecognition = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return; // Browser doesn't support Web Speech API
+
+    const recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    let finalTranscript = '';
+
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setFormData(prev => ({ ...prev, transcript: (finalTranscript + interim).trim() }));
+    };
+
+    recognition.onerror = () => {}; // Silently ignore SR errors
+    recognition.onend = () => {
+      // Restart if still recording (SR auto-stops sometimes)
+      if (mediaRecorderRef.current?.state === 'recording') {
+        try { recognition.start(); } catch { /* ignore */ }
+      }
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+  };
+
+  // ─── File Upload ────────────────────────────────────────────────
+  const handleFileUpload = (file: File) => {
+    const maxSize = 25 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error('File too large. Maximum size is 25 MB.');
+      return;
+    }
+    if (!file.type.startsWith('audio/')) {
+      toast.error('Please upload an audio file (WAV, MP3, M4A, WebM, OGG, FLAC).');
+      return;
+    }
+    transcribeAudioBlob(file, file.name);
+  };
+
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file);
+    e.target.value = '';
+  };
+
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragActive(true); };
+  const onDragLeave = () => setDragActive(false);
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  // ─── Submit ─────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -458,25 +631,105 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
               </div>
             </>
           ) : (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Transcript</label>
+            <div className="space-y-4">
+              {/* Recording & Upload Controls */}
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsRecording(!isRecording)}
-                  className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                    isRecording ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={transcribing}
+                  className={cn(
+                    'flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed transition-all text-sm font-medium',
+                    isRecording
+                      ? 'border-red-300 bg-red-50 text-red-700'
+                      : 'border-slate-200 bg-slate-50/50 text-slate-600 hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-700',
+                    transcribing && 'opacity-50 cursor-not-allowed'
                   )}
                 >
-                  {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                  {isRecording ? 'Stop Recording' : 'Start Recording'}
+                  {isRecording ? (
+                    <>
+                      <div className="relative">
+                        <StopCircle className="w-6 h-6" />
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                      </div>
+                      <span>Stop Recording</span>
+                      <span className="text-xs font-mono tabular-nums text-red-500">{formatTime(recordingTime)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-6 h-6" />
+                      <span>Live Record</span>
+                      <span className="text-xs text-slate-400">Click to start</span>
+                    </>
+                  )}
                 </button>
+
+                <div
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  onClick={() => !transcribing && !isRecording && fileInputRef.current?.click()}
+                  className={cn(
+                    'flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed transition-all text-sm font-medium cursor-pointer',
+                    dragActive
+                      ? 'border-primary-400 bg-primary-50 text-primary-700'
+                      : 'border-slate-200 bg-slate-50/50 text-slate-600 hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-700',
+                    (transcribing || isRecording) && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <Upload className="w-6 h-6" />
+                  <span>Upload Audio</span>
+                  <span className="text-xs text-slate-400">WAV, MP3, M4A, WebM</span>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="audio/*,.wav,.mp3,.m4a,.webm,.ogg,.flac"
+                    onChange={onFileInputChange}
+                    className="hidden"
+                    disabled={transcribing || isRecording}
+                  />
+                </div>
               </div>
-              <textarea name="transcript" value={formData.transcript} onChange={handleChange} rows={8} className={cn(inputClass, 'resize-none')} placeholder="Paste or dictate the clinical encounter transcript here. The AI will extract structured data from it..." />
-              <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-primary-400" />
-                AI will automatically extract entities, diagnoses, and create a structured note
-              </p>
+
+              {/* Recording Waveform Animation */}
+              {isRecording && (
+                <div className="flex items-center justify-center gap-1.5 py-2">
+                  {[1, 3, 5, 3, 1].map((h, i) => (
+                    <div
+                      key={i}
+                      className="w-1 bg-red-400 rounded-full animate-pulse"
+                      style={{ height: `${8 + h * 4}px`, animationDelay: `${i * 0.15}s` }}
+                    />
+                  ))}
+                  <span className="ml-2 text-xs text-red-500 font-medium">Listening... (live preview below)</span>
+                </div>
+              )}
+
+              {/* Transcribing Indicator */}
+              {transcribing && (
+                <div className="flex items-center justify-center gap-2 py-3 bg-primary-50/70 rounded-xl">
+                  <Loader2 className="w-4 h-4 text-primary-600 animate-spin" />
+                  <span className="text-sm text-primary-700 font-medium">Transcribing audio with Whisper AI...</span>
+                </div>
+              )}
+
+              {/* Transcript Textarea */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Transcript</label>
+                <textarea
+                  name="transcript"
+                  value={formData.transcript}
+                  onChange={handleChange}
+                  rows={8}
+                  className={cn(inputClass, 'resize-none')}
+                  placeholder="Record audio or upload a file to transcribe automatically. You can also type or paste a transcript directly..."
+                  disabled={isRecording}
+                />
+                <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-primary-400" />
+                  AI will automatically extract entities, diagnoses, and create a structured note
+                </p>
+              </div>
             </div>
           )}
 
@@ -486,7 +739,7 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || transcribing || isRecording}
               className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-semibold hover:from-primary-700 hover:to-primary-800 transition-all disabled:opacity-50 shadow-sm shadow-primary-500/20"
             >
               {loading ? (

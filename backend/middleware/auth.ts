@@ -43,3 +43,21 @@ export const authorize = (...roles: string[]) => {
     next();
   };
 };
+
+/**
+ * Middleware that blocks access for users who haven't completed their profile.
+ * Google OAuth users must select a role and complete their profile first.
+ * Allows access to profile-completion routes themselves.
+ */
+export const requireCompleteProfile = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (req.user && !req.user.isProfileComplete) {
+    res.status(403).json({
+      success: false,
+      message: 'Please complete your profile before accessing this resource',
+      code: 'PROFILE_INCOMPLETE',
+      isProfileComplete: false,
+    });
+    return;
+  }
+  next();
+};

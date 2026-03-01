@@ -1,7 +1,7 @@
 // ─── Agent Routes ────────────────────────────────────────────────────────────
 
 import { Router } from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, requireCompleteProfile } from '../middleware/auth.js';
 import { agentLimiter, validateObjectIdParam } from '../middleware/security.js';
 import { validate } from '../middleware/validation.js';
 import { pipelineRunSchema, singleAgentSchema } from '../middleware/validation.js';
@@ -18,8 +18,9 @@ const router = Router();
 // Public info endpoint
 router.get('/info', getAgentInfo);
 
-// Protected endpoints — require authentication
+// Protected endpoints — require authentication + completed profile
 router.use(protect);
+router.use(requireCompleteProfile);
 
 // Agent endpoints are expensive — apply strict rate limit
 router.use(agentLimiter);

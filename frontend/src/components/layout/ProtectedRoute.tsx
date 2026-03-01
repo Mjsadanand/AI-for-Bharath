@@ -24,6 +24,11 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
+  // Google OAuth users who haven't completed their profile → redirect to role selection
+  if (user.isProfileComplete === false) {
+    return <Navigate to="/select-role" replace />;
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }

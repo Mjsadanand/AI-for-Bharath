@@ -40,7 +40,7 @@ const roleNavItems: Record<string, Array<{ to: string; icon: React.ElementType; 
   ],
   patient: [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/translator', icon: Languages, label: 'My Reports' },
+    { to: '/my-reports', icon: FileText, label: 'My Reports', badge: 'AI' },
   ],
   researcher: [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
