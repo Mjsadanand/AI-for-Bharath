@@ -13,8 +13,7 @@ const generateToken = (id: string): string => {
 // @route   POST /api/auth/register
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, role, specialization, licenseNumber, phone,
-            dateOfBirth, gender, bloodGroup, emergencyContact } = req.body;
+    const { email, password, name, role } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -22,24 +21,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await User.create({ name, email, password, role, specialization, licenseNumber, phone });
-
-    // If patient role, create patient profile
-    if (role === 'patient') {
-      await Patient.create({
-        userId: user._id,
-        dateOfBirth: dateOfBirth || new Date('1990-01-01'),
-        gender: gender || 'other',
-        bloodGroup,
-        emergencyContact: emergencyContact || { name: 'N/A', phone: 'N/A', relation: 'N/A' },
-        allergies: [],
-        chronicConditions: [],
-        medicalHistory: [],
-        medications: [],
-        vitalSigns: [],
-        riskFactors: [],
-      });
-    }
+    const user = await User.create({
+      name: name || email.split('@')[0],
+      email,
+      password,
+      role: role || 'patient',
+      isProfileComplete: false, // Must complete role selection + profile
+    });
 
     const token = generateToken(String(user._id));
 
@@ -50,6 +38,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         name: user.name,
         email: user.email,
         role: user.role,
+        isProfileComplete: user.isProfileComplete,
+        authProvider: user.authProvider,
         token,
       },
     });
@@ -91,6 +81,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         email: user.email,
         role: user.role,
         specialization: user.specialization,
+        authProvider: user.authProvider,
+        isProfileComplete: user.isProfileComplete,
         token,
       },
     });
@@ -118,6 +110,8 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
       success: true,
       data: {
         ...user.toObject(),
+        isProfileComplete: user.isProfileComplete,
+        authProvider: user.authProvider,
         patientProfile,
       },
     });

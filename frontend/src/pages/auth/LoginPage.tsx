@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
+import GoogleSignInButton from '../../components/ui/GoogleSignInButton';
 import {
   Eye,
   EyeOff,
@@ -259,6 +260,19 @@ export default function LoginPage() {
               <Lock className="w-3 h-3" />
               <span>256-bit encrypted connection</span>
             </div>
+
+            {/* OR divider */}
+            <div className="relative my-5">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-3 text-slate-400 font-medium">OR</span>
+              </div>
+            </div>
+
+            {/* Google Sign-In */}
+            <GoogleSignInButton mode="login" onError={(msg) => setError(msg)} />
 
             <div className="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-100 text-center">
               <p className="text-sm text-slate-500">

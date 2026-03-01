@@ -12,6 +12,9 @@ const RECOMMENDED_VARS = [
   'AWS_REGION',
   'AWS_ACCESS_KEY_ID',
   'AWS_SECRET_ACCESS_KEY',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'GROQ_API_KEY',
 ] as const;
 
 export function validateEnvironment(): void {
@@ -59,5 +62,11 @@ export function validateEnvironment(): void {
       `⚠️  Missing optional environment variables: ${warnings.join(', ')}`
     );
     console.warn('   AI agent features will not work without AWS credentials.');
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.warn('   Google OAuth login will not work without GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
+    }
+    if (!process.env.GROQ_API_KEY) {
+      console.warn('   Audio transcription will not work without GROQ_API_KEY. Get a free key at https://console.groq.com');
+    }
   }
 }

@@ -7,18 +7,31 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  googleLogin: (idToken: string) => Promise<{ isNewUser: boolean; isProfileComplete: boolean }>;
+  selectRole: (role: string) => Promise<void>;
+  completeProfile: (data: CompleteProfileData) => Promise<void>;
   logout: () => void;
+  setUser: (user: User | null) => void;
 }
 
 interface RegisterData {
-  name: string;
   email: string;
   password: string;
-  role: string;
+}
+
+interface CompleteProfileData {
+  name?: string;
+  phone?: string;
   specialization?: string;
+  licenseNumber?: string;
   dateOfBirth?: string;
   gender?: string;
-  bloodType?: string;
+  bloodGroup?: string;
+  emergencyContact?: {
+    name: string;
+    phone: string;
+    relation: string;
+  };
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -60,6 +73,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   };
 
+  const googleLogin = async (idToken: string): Promise<{ isNewUser: boolean; isProfileComplete: boolean }> => {
+    const { data } = await api.post('/auth/google', { idToken });
+    const userData = data.data;
+    localStorage.setItem('carenet_token', userData.token);
+    localStorage.setItem('carenet_user', JSON.stringify(userData));
+    setUser(userData);
+    return { isNewUser: data.isNewUser, isProfileComplete: data.isProfileComplete };
+  };
+
+  const selectRole = async (role: string) => {
+    const { data } = await api.post('/auth/google/select-role', { role });
+    const updatedUser = { ...user!, role: data.data.role as User['role'], isProfileComplete: false };
+    localStorage.setItem('carenet_user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
+
+  const completeProfile = async (profileData: CompleteProfileData) => {
+    const { data } = await api.post('/auth/google/complete-profile', profileData);
+    const userData = data.data;
+    localStorage.setItem('carenet_token', userData.token);
+    localStorage.setItem('carenet_user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
   const logout = () => {
     localStorage.removeItem('carenet_token');
     localStorage.removeItem('carenet_user');
@@ -67,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, googleLogin, selectRole, completeProfile, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

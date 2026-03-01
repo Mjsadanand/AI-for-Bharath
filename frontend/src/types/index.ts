@@ -6,7 +6,10 @@ export interface User {
   specialization?: string;
   licenseNumber?: string;
   phone?: string;
+  avatar?: string;
   token: string;
+  authProvider?: 'local' | 'google';
+  isProfileComplete?: boolean;
 }
 
 export interface Patient {

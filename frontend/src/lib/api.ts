@@ -28,6 +28,13 @@ api.interceptors.response.use(
       localStorage.removeItem('carenet_user');
       window.location.href = '/login';
     }
+    // Redirect incomplete-profile users to role selection
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'PROFILE_INCOMPLETE'
+    ) {
+      window.location.href = '/select-role';
+    }
     return Promise.reject(error);
   }
 );
