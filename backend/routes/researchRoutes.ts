@@ -2,11 +2,12 @@ import { Router } from 'express';
 import {
   searchPapers, getPaper, savePaper, getTrends, compareEvidence,
 } from '../controllers/researchController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, requireCompleteProfile } from '../middleware/auth.js';
 
 const router = Router();
 
 router.use(protect);
+router.use(requireCompleteProfile);
 router.get('/search', searchPapers);
 router.get('/trends', getTrends);
 router.post('/compare', compareEvidence);

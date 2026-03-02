@@ -36,11 +36,12 @@ const roleNavItems: Record<string, Array<{ to: string; icon: React.ElementType; 
     { to: '/predictive', icon: Brain, label: 'Predictive Engine', badge: 'AI' },
     { to: '/research', icon: BookOpen, label: 'Research', badge: 'AI' },
     { to: '/workflow', icon: ClipboardList, label: 'Workflow', badge: 'AI' },
+    { to: '/agents', icon: Sparkles, label: 'AI Agents', badge: 'AI' },
     { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
   ],
   patient: [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/translator', icon: Languages, label: 'My Reports' },
+    { to: '/my-reports', icon: FileText, label: 'My Reports', badge: 'AI' },
   ],
   researcher: [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -51,6 +52,7 @@ const roleNavItems: Record<string, Array<{ to: string; icon: React.ElementType; 
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/patients', icon: Users, label: 'Users' },
     { to: '/workflow', icon: ClipboardList, label: 'Workflow' },
+    { to: '/agents', icon: Sparkles, label: 'AI Agents', badge: 'AI' },
     { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
   ],
 };

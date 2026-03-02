@@ -4,6 +4,91 @@ import User from '../models/User.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { handleControllerError } from '../middleware/errorHandler.js';
 import { escapeRegex } from '../middleware/security.js';
+import crypto from 'crypto';
+
+// @desc    Create a new patient (doctor/admin)
+// @route   POST /api/patients
+export const createPatient = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const {
+      name, email, phone,
+      dateOfBirth, gender, bloodGroup,
+      allergies, chronicConditions,
+      emergencyContact, insurance,
+      medicalHistory, medications, vitalSigns, riskFactors,
+    } = req.body;
+
+    // Check if user with this email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      res.status(400).json({ success: false, message: 'A user with this email already exists' });
+      return;
+    }
+
+    // Generate a secure random password (patient can reset later)
+    const tempPassword = crypto.randomBytes(12).toString('base64url') + 'A1!';
+
+    // Create User account with role=patient
+    const user = await User.create({
+      name,
+      email,
+      password: tempPassword,
+      role: 'patient',
+      phone: phone || undefined,
+      isProfileComplete: true,
+    });
+
+    // Build patient data
+    const patientData: Record<string, any> = {
+      userId: user._id,
+      dateOfBirth: new Date(dateOfBirth),
+      gender,
+      emergencyContact,
+    };
+
+    if (bloodGroup) patientData.bloodGroup = bloodGroup;
+    if (allergies?.length) patientData.allergies = allergies;
+    if (chronicConditions?.length) patientData.chronicConditions = chronicConditions;
+    if (insurance) patientData.insurance = insurance;
+    if (medicalHistory?.length) {
+      patientData.medicalHistory = medicalHistory.map((h: any) => ({
+        ...h,
+        diagnosedDate: h.diagnosedDate ? new Date(h.diagnosedDate) : new Date(),
+      }));
+    }
+    if (medications?.length) {
+      patientData.medications = medications.map((m: any) => ({
+        ...m,
+        prescribedBy: req.user?._id,
+        startDate: m.startDate ? new Date(m.startDate) : new Date(),
+      }));
+    }
+    if (vitalSigns) {
+      patientData.vitalSigns = [{ date: new Date(), ...vitalSigns }];
+    }
+    if (riskFactors?.length) {
+      patientData.riskFactors = riskFactors.map((r: any) => ({
+        ...r,
+        identifiedDate: r.identifiedDate ? new Date(r.identifiedDate) : new Date(),
+      }));
+    }
+
+    const patient = await Patient.create(patientData);
+
+    // Populate for response
+    const populated = await Patient.findById(patient._id)
+      .populate('userId', 'name email phone avatar');
+
+    res.status(201).json({
+      success: true,
+      data: populated,
+      tempPassword, // Return so doctor can share with patient (shown once)
+      message: `Patient ${name} created with code ${patient.patientCode}. Temporary password generated — share securely.`,
+    });
+  } catch (error: any) {
+    handleControllerError(res, error, 'Failed to create patient');
+  }
+};
 
 // @desc    Get all patients (doctor/admin)
 // @route   GET /api/patients

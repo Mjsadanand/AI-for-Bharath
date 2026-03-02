@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+// Universal API base URL — reads from VITE_API_BASE_URL env variable
+// In development: defaults to '/api' (proxied by Vite to localhost:5000)
+// In production: set VITE_API_BASE_URL to your deployed backend (e.g., https://api.yourapp.com/api)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -27,6 +32,13 @@ api.interceptors.response.use(
       localStorage.removeItem('carenet_token');
       localStorage.removeItem('carenet_user');
       window.location.href = '/login';
+    }
+    // Redirect incomplete-profile users to role selection
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'PROFILE_INCOMPLETE'
+    ) {
+      window.location.href = '/select-role';
     }
     return Promise.reject(error);
   }

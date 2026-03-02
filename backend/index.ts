@@ -16,6 +16,7 @@ import workflowRoutes from './routes/workflowRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import pipelineRoutes from './routes/pipelineRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
+import patientReportRoutes from './routes/patientReportRoutes.js';
 
 import { globalLimiter, authLimiter, sanitizeInput } from './middleware/security.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
@@ -106,6 +107,7 @@ async function startServer() {
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/pipeline', pipelineRoutes);
   app.use('/api/agents', agentRoutes);
+  app.use('/api/patient-reports', patientReportRoutes);
 
   // ── Health check ──────────────────────────────────────────────────────
   app.get('/api/health', (_req, res) => {

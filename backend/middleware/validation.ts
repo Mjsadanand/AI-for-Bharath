@@ -36,7 +36,6 @@ const phoneNumber = z
 
 export const registerSchema = z
   .object({
-    name: safeName,
     email,
     password: z
       .string()
@@ -46,9 +45,10 @@ export const registerSchema = z
       .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
       .regex(/[0-9]/, 'Password must contain at least one number')
       .regex(/[^a-zA-Z0-9]/, 'Password must contain at least one special character'),
+    name: safeName.optional(),
     role: z.enum(['doctor', 'patient', 'researcher'], {
       error: 'Role must be doctor, patient, or researcher',
-    }), // 'admin' excluded from self-registration
+    }).optional(), // Optional — defaults handled by controller
     specialization: z.string().max(100).optional(),
     licenseNumber: z.string().max(50).optional(),
     phone: phoneNumber,
@@ -76,7 +76,86 @@ export const updateProfileSchema = z.object({
   specialization: z.string().max(100).optional(),
 });
 
+// ── Google OAuth Schemas ────────────────────────────────────────────────────
+
+export const googleAuthSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required').max(5000),
+});
+
+export const selectRoleSchema = z.object({
+  role: z.enum(['doctor', 'patient', 'researcher'], {
+    error: 'Role must be doctor, patient, or researcher',
+  }),
+});
+
+export const completeProfileSchema = z
+  .object({
+    name: safeName.optional(),
+    phone: phoneNumber,
+    specialization: z.string().max(100).optional(),
+    licenseNumber: z.string().max(50).optional(),
+    dateOfBirth: z.string().datetime().optional().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
+    gender: z.enum(['male', 'female', 'other']).optional(),
+    bloodGroup: z.string().max(10).optional(),
+    emergencyContact: z
+      .object({
+        name: z.string().max(100),
+        phone: z.string().max(20),
+        relation: z.string().max(50),
+      })
+      .optional(),
+  })
+  .strict();
+
 // ── Patient Schemas ─────────────────────────────────────────────────────────
+
+export const createPatientSchema = z.object({
+  name: safeName,
+  email,
+  phone: phoneNumber,
+  dateOfBirth: z.string().min(1, 'Date of birth is required'),
+  gender: z.enum(['male', 'female', 'other']),
+  bloodGroup: z.string().max(10).optional(),
+  allergies: z.array(z.string().max(100)).max(50).optional(),
+  chronicConditions: z.array(z.string().max(100)).max(50).optional(),
+  emergencyContact: z.object({
+    name: z.string().min(1).max(100),
+    phone: z.string().min(1).max(20),
+    relation: z.string().min(1).max(50),
+  }),
+  insurance: z.object({
+    provider: z.string().max(100).optional(),
+    policyNumber: z.string().max(50).optional(),
+    expiryDate: z.string().optional(),
+  }).optional(),
+  medicalHistory: z.array(z.object({
+    condition: z.string().max(200),
+    diagnosedDate: z.string().optional(),
+    status: z.enum(['active', 'resolved', 'managed']),
+    notes: z.string().max(500).optional(),
+  })).max(50).optional(),
+  medications: z.array(z.object({
+    name: z.string().max(200),
+    dosage: z.string().max(100),
+    frequency: z.string().max(100),
+    startDate: z.string().optional(),
+  })).max(50).optional(),
+  vitalSigns: z.object({
+    bloodPressure: z.object({
+      systolic: z.number().min(40).max(300),
+      diastolic: z.number().min(20).max(200),
+    }).optional(),
+    heartRate: z.number().min(20).max(300).optional(),
+    temperature: z.number().min(90).max(115).optional(),
+    oxygenSaturation: z.number().min(50).max(100).optional(),
+    weight: z.number().min(0.5).max(700).optional(),
+    height: z.number().min(20).max(300).optional(),
+  }).optional(),
+  riskFactors: z.array(z.object({
+    factor: z.string().max(200),
+    severity: z.enum(['low', 'moderate', 'high']),
+  })).max(20).optional(),
+}).strict();
 
 export const updatePatientSchema = z.object({
   allergies: z.array(z.string().max(100)).max(50).optional(),

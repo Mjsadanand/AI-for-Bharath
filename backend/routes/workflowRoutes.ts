@@ -4,13 +4,14 @@ import {
   createClaim, getClaims, updateClaim,
   createLabResult, getLabResults, updateLabResult,
 } from '../controllers/workflowController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, requireCompleteProfile } from '../middleware/auth.js';
 import { validateObjectIdParam } from '../middleware/security.js';
 import { validate, createAppointmentSchema, createClaimSchema } from '../middleware/validation.js';
 
 const router = Router();
 
 router.use(protect);
+router.use(requireCompleteProfile);
 
 // Appointments
 router.post('/appointments', validate(createAppointmentSchema), createAppointment);

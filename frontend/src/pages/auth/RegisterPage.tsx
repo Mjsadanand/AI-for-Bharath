@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
+import GoogleSignInButton from '../../components/ui/GoogleSignInButton';
 import {
   Eye,
   EyeOff,
@@ -10,77 +11,52 @@ import {
   AlertCircle,
   Shield,
   Lock,
-  Stethoscope,
-  User,
-  FlaskConical,
-  UserCog,
   Home,
 } from 'lucide-react';
 
-const roleOptions = [
-  { value: 'doctor', label: 'Doctor / Provider', icon: Stethoscope, desc: 'Clinical tools & AI agents' },
-  { value: 'patient', label: 'Patient', icon: User, desc: 'My health & reports' },
-  { value: 'researcher', label: 'Researcher', icon: FlaskConical, desc: 'Analytics & research tools' },
-  { value: 'admin', label: 'Administrator', icon: UserCog, desc: 'System management' },
-];
-
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    role: 'doctor',
-    specialization: '',
-    dateOfBirth: '',
-    gender: '',
-    bloodGroup: '',
-  });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (formData.password !== formData.confirmPassword) {
+    if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    if (formData.password.length < 8) {
+    if (password.length < 8) {
       setError('Password must be at least 8 characters');
       return;
     }
-    if (!/[A-Z]/.test(formData.password)) {
+    if (!/[A-Z]/.test(password)) {
       setError('Password must contain at least one uppercase letter');
       return;
     }
-    if (!/[a-z]/.test(formData.password)) {
+    if (!/[a-z]/.test(password)) {
       setError('Password must contain at least one lowercase letter');
       return;
     }
-    if (!/[0-9]/.test(formData.password)) {
+    if (!/[0-9]/.test(password)) {
       setError('Password must contain at least one number');
       return;
     }
-    if (!/[^a-zA-Z0-9]/.test(formData.password)) {
+    if (!/[^a-zA-Z0-9]/.test(password)) {
       setError('Password must contain at least one special character');
       return;
     }
 
     setLoading(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { confirmPassword: _unused, ...registerData } = formData;
-      await register(registerData);
-      navigate('/dashboard');
+      await register({ email, password });
+      navigate('/select-role');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { errors?: Array<{ field?: string; message: string }>; message?: string } } };
       const res = error.response?.data;
@@ -184,12 +160,12 @@ export default function RegisterPage() {
       </div>
 
       {/* ── Right form panel ── */}
-      <div className="flex-1 flex items-start sm:items-center justify-center px-4 py-6 sm:p-6 lg:p-10 overflow-y-auto">
+      <div className="flex-1 flex items-center justify-center px-4 py-6 sm:p-6 lg:p-10 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.1 }}
-          className="w-full max-w-[520px] py-2 sm:py-6"
+          className="w-full max-w-[420px]"
         >
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-5 sm:mb-6 justify-center">
@@ -199,7 +175,7 @@ export default function RegisterPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 sm:p-8">
             <div className="mb-5 sm:mb-6">
               <h2 className="text-xl sm:text-[22px] font-bold text-slate-800">Create Account</h2>
-              <p className="text-slate-500 text-sm mt-1">Fill in your details to get started</p>
+              <p className="text-slate-500 text-sm mt-1">Enter your email and password to get started</p>
             </div>
 
             {/* Error */}
@@ -219,178 +195,57 @@ export default function RegisterPage() {
               )}
             </AnimatePresence>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Name + Email */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className={inputClass}
-                    placeholder="Dr. Jane Smith"
-                    required
-                    autoComplete="name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={inputClass}
-                    placeholder="jane@hospital.com"
-                    required
-                    autoComplete="email"
-                  />
-                </div>
-              </div>
-
-              {/* Role selector — card style */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Select Your Role</label>
-                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
-                  {roleOptions.map((r) => (
-                    <button
-                      key={r.value}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, role: r.value })}
-                      className={cn(
-                        'flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border text-left transition-all duration-200',
-                        formData.role === r.value
-                          ? 'border-primary-400 bg-primary-50/50 ring-1 ring-primary-400/30'
-                          : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
-                      )}
-                    >
-                      <div className={cn(
-                        'p-1.5 rounded-lg',
-                        formData.role === r.value ? 'bg-primary-100 text-primary-600' : 'bg-slate-100 text-slate-500'
-                      )}>
-                        <r.icon className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <p className={cn(
-                          'text-xs font-semibold',
-                          formData.role === r.value ? 'text-primary-700' : 'text-slate-700'
-                        )}>{r.label}</p>
-                        <p className="text-[10px] text-slate-400">{r.desc}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Email Address</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={inputClass}
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="email"
+                />
               </div>
 
-              {/* Doctor: Specialization */}
-              <AnimatePresence mode="wait">
-                {formData.role === 'doctor' && (
-                  <motion.div
-                    key="doctor-fields"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Specialization</label>
-                      <input
-                        type="text"
-                        name="specialization"
-                        value={formData.specialization}
-                        onChange={handleChange}
-                        className={inputClass}
-                        placeholder="Cardiology, Neurology, etc."
-                      />
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* Patient: DOB, Gender, BloodType */}
-                {formData.role === 'patient' && (
-                  <motion.div
-                    key="patient-fields"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Date of Birth</label>
-                        <input
-                          type="date"
-                          name="dateOfBirth"
-                          value={formData.dateOfBirth}
-                          onChange={handleChange}
-                          className={inputClass}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Gender</label>
-                        <select name="gender" value={formData.gender} onChange={handleChange} className={inputClass}>
-                          <option value="">Select</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1.5">Blood Type</label>
-                        <select name="bloodGroup" value={formData.bloodGroup} onChange={handleChange} className={inputClass}>
-                          <option value="">Select</option>
-                          {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bt) => (
-                            <option key={bt} value={bt}>{bt}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Passwords */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={cn(inputClass, 'pr-10')}
-                      placeholder="Min. 8 chars (A-z, 0-9, !@#)"
-                      required
-                      autoComplete="new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password</label>
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+                <div className="relative">
                   <input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className={inputClass}
-                    placeholder="Repeat password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={cn(inputClass, 'pr-10')}
+                    placeholder="Min. 8 chars (A-z, 0-9, !@#)"
                     required
                     autoComplete="new-password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={inputClass}
+                  placeholder="Repeat password"
+                  required
+                  autoComplete="new-password"
+                />
               </div>
 
               {/* Submit */}
@@ -417,6 +272,19 @@ export default function RegisterPage() {
               <Lock className="w-3 h-3" />
               <span>256-bit encrypted · HIPAA compliant</span>
             </div>
+
+            {/* OR divider */}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-3 text-slate-400 font-medium">OR</span>
+              </div>
+            </div>
+
+            {/* Google Sign-Up */}
+            <GoogleSignInButton mode="register" onError={(msg) => setError(msg)} />
 
             <div className="mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-100 text-center">
               <p className="text-sm text-slate-500">
