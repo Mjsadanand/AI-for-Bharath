@@ -18,6 +18,7 @@ import WorkflowPage from './pages/workflow/WorkflowPage';
 import PatientsPage from './pages/patients/PatientsPage';
 import PipelinePage from './pages/pipeline/PipelinePage';
 import MyReportsPage from './pages/patient/MyReportsPage';
+import AgentsPage from './pages/agents/AgentsPage';
 
 export default function App() {
   const { user } = useAuth();
@@ -80,6 +81,11 @@ export default function App() {
           <Route path="/pipeline" element={
             <ProtectedRoute allowedRoles={['doctor', 'admin']}>
               <PipelinePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/agents" element={
+            <ProtectedRoute allowedRoles={['doctor', 'admin']}>
+              <AgentsPage />
             </ProtectedRoute>
           } />
         </Route>

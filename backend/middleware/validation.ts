@@ -109,6 +109,54 @@ export const completeProfileSchema = z
 
 // ── Patient Schemas ─────────────────────────────────────────────────────────
 
+export const createPatientSchema = z.object({
+  name: safeName,
+  email,
+  phone: phoneNumber,
+  dateOfBirth: z.string().min(1, 'Date of birth is required'),
+  gender: z.enum(['male', 'female', 'other']),
+  bloodGroup: z.string().max(10).optional(),
+  allergies: z.array(z.string().max(100)).max(50).optional(),
+  chronicConditions: z.array(z.string().max(100)).max(50).optional(),
+  emergencyContact: z.object({
+    name: z.string().min(1).max(100),
+    phone: z.string().min(1).max(20),
+    relation: z.string().min(1).max(50),
+  }),
+  insurance: z.object({
+    provider: z.string().max(100).optional(),
+    policyNumber: z.string().max(50).optional(),
+    expiryDate: z.string().optional(),
+  }).optional(),
+  medicalHistory: z.array(z.object({
+    condition: z.string().max(200),
+    diagnosedDate: z.string().optional(),
+    status: z.enum(['active', 'resolved', 'managed']),
+    notes: z.string().max(500).optional(),
+  })).max(50).optional(),
+  medications: z.array(z.object({
+    name: z.string().max(200),
+    dosage: z.string().max(100),
+    frequency: z.string().max(100),
+    startDate: z.string().optional(),
+  })).max(50).optional(),
+  vitalSigns: z.object({
+    bloodPressure: z.object({
+      systolic: z.number().min(40).max(300),
+      diastolic: z.number().min(20).max(200),
+    }).optional(),
+    heartRate: z.number().min(20).max(300).optional(),
+    temperature: z.number().min(90).max(115).optional(),
+    oxygenSaturation: z.number().min(50).max(100).optional(),
+    weight: z.number().min(0.5).max(700).optional(),
+    height: z.number().min(20).max(300).optional(),
+  }).optional(),
+  riskFactors: z.array(z.object({
+    factor: z.string().max(200),
+    severity: z.enum(['low', 'moderate', 'high']),
+  })).max(20).optional(),
+}).strict();
+
 export const updatePatientSchema = z.object({
   allergies: z.array(z.string().max(100)).max(50).optional(),
   chronicConditions: z.array(z.string().max(100)).max(50).optional(),

@@ -8,7 +8,7 @@ import type { ToolDefinition, AgentContext } from '../core/types.js';
 import ClinicalNote from '../../models/ClinicalNote.js';
 import Patient from '../../models/Patient.js';
 
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || 'us.amazon.nova-premier-v1:0';
 
 // ── Tool Implementations ────────────────────────────────────────────────────
 

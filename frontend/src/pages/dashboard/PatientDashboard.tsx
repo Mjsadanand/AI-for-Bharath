@@ -11,8 +11,11 @@ import {
   TestTube,
   Shield,
   Clock,
+  User,
+  AlertCircle,
+  Droplet,
 } from 'lucide-react';
-import type { DashboardData } from '../../types';
+import type { DashboardData, Patient } from '../../types';
 
 const stagger = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
@@ -21,6 +24,7 @@ export default function PatientDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [myProfile, setMyProfile] = useState<Patient | null>(null);
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -33,7 +37,14 @@ export default function PatientDashboard() {
         setLoading(false);
       }
     };
+    const fetchMyProfile = async () => {
+      try {
+        const { data: res } = await api.get('/patients/me/profile');
+        setMyProfile(res.data);
+      } catch { /* patient profile may not exist yet */ }
+    };
     fetchDashboard();
+    fetchMyProfile();
   }, []);
 
   if (loading) {
@@ -206,6 +217,54 @@ export default function PatientDashboard() {
           )}
         </Card>
       </motion.div>
+
+      {/* My Profile Summary */}
+      {myProfile && (
+        <motion.div variants={fadeUp}>
+          <Card title="My Health Profile" icon={User}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {myProfile.bloodGroup && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-red-50/50 border border-red-100">
+                  <Droplet className="w-5 h-5 text-red-500" />
+                  <div>
+                    <p className="text-xs text-slate-500">Blood Group</p>
+                    <p className="text-sm font-bold text-slate-800">{myProfile.bloodGroup}</p>
+                  </div>
+                </div>
+              )}
+              {myProfile.gender && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50/50 border border-blue-100">
+                  <User className="w-5 h-5 text-blue-500" />
+                  <div>
+                    <p className="text-xs text-slate-500">Gender</p>
+                    <p className="text-sm font-bold text-slate-800 capitalize">{myProfile.gender}</p>
+                  </div>
+                </div>
+              )}
+              {myProfile.allergies && myProfile.allergies.length > 0 && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100 sm:col-span-2">
+                  <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500">Allergies</p>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {myProfile.allergies.map((a, i) => (
+                        <Badge key={i} variant="danger" dot>{a}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {myProfile.emergencyContact && (
+              <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <p className="text-xs text-slate-500 mb-1">Emergency Contact</p>
+                <p className="text-sm font-semibold text-slate-800">{myProfile.emergencyContact.name} <span className="font-normal text-slate-500">({myProfile.emergencyContact.relation})</span></p>
+                <p className="text-xs text-slate-500">{myProfile.emergencyContact.phone}</p>
+              </div>
+            )}
+          </Card>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

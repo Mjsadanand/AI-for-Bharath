@@ -70,6 +70,8 @@ export default function WorkflowPage() {
   const [labs, setLabs] = useState<LabResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewAppointment, setShowNewAppointment] = useState(false);
+  const [showNewClaim, setShowNewClaim] = useState(false);
+  const [showNewLab, setShowNewLab] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => { fetchAppointments(); fetchClaims(); fetchLabs(); }, []);
@@ -190,6 +192,11 @@ export default function WorkflowPage() {
             {/* Insurance Claims */}
             {activeTab === 'claims' && (
               <motion.div key="claims" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
+                <div className="flex justify-end">
+                  <button onClick={() => setShowNewClaim(true)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-semibold hover:from-primary-700 hover:to-primary-800 transition-all shadow-sm shadow-primary-500/20">
+                    <Plus className="w-4 h-4" />New Claim
+                  </button>
+                </div>
                 {claims.length > 0 ? (
                   claims.map((claim, idx) => (
                     <motion.div key={claim._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }} className="border border-slate-200/80 rounded-xl overflow-hidden hover:border-slate-300 hover:shadow-md transition-all">
@@ -234,6 +241,17 @@ export default function WorkflowPage() {
                                     <p className="text-sm text-red-700">{claim.denialReason}</p>
                                   </div>
                                 )}
+                                {/* Update Claim Status */}
+                                {(claim.status === 'draft' || claim.status === 'denied') && (
+                                  <div className="col-span-full flex gap-2 pt-2">
+                                    {claim.status === 'draft' && (
+                                      <button onClick={async () => { try { await api.put(`/workflow/claims/${claim._id}`, { status: 'submitted' }); toast.success('Claim submitted'); fetchClaims(); } catch { toast.error('Failed'); } }} className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 rounded-xl hover:from-green-100 hover:to-emerald-100 border border-green-200 transition-all">Submit Claim</button>
+                                    )}
+                                    {claim.status === 'denied' && (
+                                      <button onClick={async () => { try { await api.put(`/workflow/claims/${claim._id}`, { status: 'appealed' }); toast.success('Claim appealed'); fetchClaims(); } catch { toast.error('Failed'); } }} className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-amber-50 to-orange-50 text-amber-700 rounded-xl hover:from-amber-100 hover:to-orange-100 border border-amber-200 transition-all">Appeal Claim</button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </motion.div>
                           )}
@@ -250,6 +268,11 @@ export default function WorkflowPage() {
             {/* Lab Results */}
             {activeTab === 'labs' && (
               <motion.div key="labs" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-4">
+                <div className="flex justify-end">
+                  <button onClick={() => setShowNewLab(true)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-semibold hover:from-primary-700 hover:to-primary-800 transition-all shadow-sm shadow-primary-500/20">
+                    <Plus className="w-4 h-4" />New Lab Order
+                  </button>
+                </div>
                 {labs.length > 0 ? (
                   labs.map((lab, idx) => {
                     const hasAbnormal = lab.results?.some((r) => r.status === 'abnormal' || r.status === 'critical');
@@ -302,6 +325,12 @@ export default function WorkflowPage() {
       <AnimatePresence>
         {showNewAppointment && (
           <NewAppointmentModal onClose={() => setShowNewAppointment(false)} onCreated={() => { setShowNewAppointment(false); fetchAppointments(); }} />
+        )}
+        {showNewClaim && (
+          <NewClaimModal onClose={() => setShowNewClaim(false)} onCreated={() => { setShowNewClaim(false); fetchClaims(); }} />
+        )}
+        {showNewLab && (
+          <NewLabModal onClose={() => setShowNewLab(false)} onCreated={() => { setShowNewLab(false); fetchLabs(); }} />
         )}
       </AnimatePresence>
     </motion.div>
@@ -369,6 +398,134 @@ function NewAppointmentModal({ onClose, onCreated }: { onClose: () => void; onCr
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all">Cancel</button>
             <button type="submit" disabled={submitting} className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl hover:from-primary-700 hover:to-primary-800 transition-all disabled:opacity-50 shadow-sm shadow-primary-500/20">{submitting ? 'Scheduling...' : 'Schedule'}</button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ── New Insurance Claim Modal ── */
+function NewClaimModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [form, setForm] = useState({ patientId: '', insuranceProvider: '', policyNumber: '', totalAmount: '', diagnosisCodes: '', procedureCodes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const inputClass = 'w-full px-4 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400 transition-all';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.patientId || !form.insuranceProvider || !form.policyNumber || !form.totalAmount) { toast.error('Fill all required fields'); return; }
+    setSubmitting(true);
+    try {
+      await api.post('/workflow/claims', {
+        patientId: form.patientId,
+        insuranceProvider: form.insuranceProvider,
+        policyNumber: form.policyNumber,
+        totalAmount: +form.totalAmount,
+        diagnosisCodes: form.diagnosisCodes.split(',').map(s => s.trim()).filter(Boolean).map(code => ({ code, description: code })),
+        procedureCodes: form.procedureCodes.split(',').map(s => s.trim()).filter(Boolean).map(code => ({ code, description: code })),
+      });
+      toast.success('Claim created');
+      onCreated();
+    } catch (err: unknown) { const error = err as { response?: { data?: { message?: string } } }; toast.error(error.response?.data?.message || 'Failed to create claim'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-800">New Insurance Claim</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient ID *</label>
+            <input type="text" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className={inputClass} placeholder="Enter patient ID" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Insurance Provider *</label>
+              <input type="text" value={form.insuranceProvider} onChange={(e) => setForm({ ...form, insuranceProvider: e.target.value })} className={inputClass} placeholder="e.g., Blue Cross" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Policy # *</label>
+              <input type="text" value={form.policyNumber} onChange={(e) => setForm({ ...form, policyNumber: e.target.value })} className={inputClass} placeholder="Policy number" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Total Amount ($) *</label>
+            <input type="number" step="0.01" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} className={inputClass} placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Diagnosis Codes (comma-separated)</label>
+            <input type="text" value={form.diagnosisCodes} onChange={(e) => setForm({ ...form, diagnosisCodes: e.target.value })} className={inputClass} placeholder="e.g., E11.9, I10" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Procedure Codes (comma-separated)</label>
+            <input type="text" value={form.procedureCodes} onChange={(e) => setForm({ ...form, procedureCodes: e.target.value })} className={inputClass} placeholder="e.g., 99213, 85025" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all">Cancel</button>
+            <button type="submit" disabled={submitting} className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl hover:from-primary-700 hover:to-primary-800 disabled:opacity-50 transition-all">{submitting ? 'Creating...' : 'Create Claim'}</button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* ── New Lab Order Modal ── */
+function NewLabModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [form, setForm] = useState({ patientId: '', testName: '', category: 'hematology', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const inputClass = 'w-full px-4 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400 transition-all';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.patientId || !form.testName) { toast.error('Fill all required fields'); return; }
+    setSubmitting(true);
+    try {
+      await api.post('/workflow/labs', { patientId: form.patientId, testName: form.testName, category: form.category, notes: form.notes });
+      toast.success('Lab order created');
+      onCreated();
+    } catch (err: unknown) { const error = err as { response?: { data?: { message?: string } } }; toast.error(error.response?.data?.message || 'Failed to create lab order'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-800">New Lab Order</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient ID *</label>
+            <input type="text" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className={inputClass} placeholder="Enter patient ID" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Test Name *</label>
+            <input type="text" value={form.testName} onChange={(e) => setForm({ ...form, testName: e.target.value })} className={inputClass} placeholder="e.g., Complete Blood Count" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Category</label>
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputClass}>
+              <option value="hematology">Hematology</option>
+              <option value="chemistry">Chemistry</option>
+              <option value="microbiology">Microbiology</option>
+              <option value="immunology">Immunology</option>
+              <option value="pathology">Pathology</option>
+              <option value="radiology">Radiology</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Notes</label>
+            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={inputClass} rows={2} placeholder="Additional notes..." />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all">Cancel</button>
+            <button type="submit" disabled={submitting} className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl hover:from-primary-700 hover:to-primary-800 disabled:opacity-50 transition-all">{submitting ? 'Creating...' : 'Create Lab Order'}</button>
           </div>
         </form>
       </motion.div>

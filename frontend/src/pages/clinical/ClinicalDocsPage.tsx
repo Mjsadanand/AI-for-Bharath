@@ -156,6 +156,16 @@ function NoteCard({ note, onClick, expanded, onVerify }: {
   expanded: boolean;
   onVerify: () => void;
 }) {
+  const [fullNote, setFullNote] = useState<ClinicalNote>(note);
+
+  useEffect(() => {
+    if (expanded && note._id) {
+      api.get(`/clinical-docs/${note._id}`).then(({ data }) => {
+        if (data.data) setFullNote(data.data);
+      }).catch(() => { /* use inline data */ });
+    }
+  }, [expanded, note._id]);
+
   const handleVerify = async (action: 'verify' | 'reject') => {
     try {
       await api.put(`/clinical-docs/${note._id}/verify`, { action });
@@ -228,44 +238,44 @@ function NoteCard({ note, onClick, expanded, onVerify }: {
             className="overflow-hidden"
           >
             <div className="border-t border-slate-100 p-5 space-y-4">
-              {note.historyOfPresentIllness && (
+              {fullNote.historyOfPresentIllness && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">History of Present Illness</p>
-                  <p className="text-sm text-slate-700 leading-relaxed">{note.historyOfPresentIllness}</p>
+                  <p className="text-sm text-slate-700 leading-relaxed">{fullNote.historyOfPresentIllness}</p>
                 </div>
               )}
-              {note.physicalExam && (
+              {fullNote.physicalExam && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Physical Exam</p>
-                  {typeof note.physicalExam === 'string' ? (
-                    <p className="text-sm text-slate-700">{note.physicalExam}</p>
+                  {typeof fullNote.physicalExam === 'string' ? (
+                    <p className="text-sm text-slate-700">{fullNote.physicalExam}</p>
                   ) : (
                     <div className="text-sm text-slate-700">
-                      {note.physicalExam.general && <p>{note.physicalExam.general}</p>}
-                      {note.physicalExam.findings?.length > 0 && (
+                      {fullNote.physicalExam.general && <p>{fullNote.physicalExam.general}</p>}
+                      {fullNote.physicalExam.findings?.length > 0 && (
                         <ul className="list-disc list-inside mt-1 space-y-0.5">
-                          {note.physicalExam.findings.map((f: string, i: number) => <li key={i}>{f}</li>)}
+                          {fullNote.physicalExam.findings.map((f: string, i: number) => <li key={i}>{f}</li>)}
                         </ul>
                       )}
                     </div>
                   )}
                 </div>
               )}
-              {note.assessment?.length > 0 && (
+              {fullNote.assessment?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Assessment</p>
                   <div className="flex flex-wrap gap-2">
-                    {note.assessment.map((a, i) => (
+                    {fullNote.assessment.map((a, i) => (
                       <Badge key={i} variant="info">{a.diagnosis} {a.icdCode ? `(${a.icdCode})` : ''} - {a.severity}</Badge>
                     ))}
                   </div>
                 </div>
               )}
-              {note.plan?.length > 0 && (
+              {fullNote.plan?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Plan</p>
                   <ul className="text-sm text-slate-700 space-y-1">
-                    {note.plan.map((p, i) => (
+                    {fullNote.plan.map((p, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <span className="text-primary-500 mt-1">•</span>
                         {p.treatment}{p.followUp ? ` — Follow up: ${p.followUp}` : ''}
@@ -274,24 +284,24 @@ function NoteCard({ note, onClick, expanded, onVerify }: {
                   </ul>
                 </div>
               )}
-              {note.prescriptions && note.prescriptions.length > 0 && (
+              {fullNote.prescriptions && fullNote.prescriptions.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Prescriptions</p>
                   <div className="flex flex-wrap gap-2">
-                    {note.prescriptions.map((rx, i) => (
+                    {fullNote.prescriptions.map((rx, i) => (
                       <Badge key={i} variant="default">{rx.medication} {rx.dosage} {rx.frequency}</Badge>
                     ))}
                   </div>
                 </div>
               )}
-              {note.extractedEntities?.length > 0 && (
+              {fullNote.extractedEntities?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                     <Sparkles className="w-3 h-3 inline mr-1" />
                     AI-Extracted Entities
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {note.extractedEntities.map((entity, i) => (
+                    {fullNote.extractedEntities.map((entity, i) => (
                       <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100 text-xs">
                         <span className="font-semibold text-slate-700">{entity.value}</span>
                         <span className="text-slate-400">({entity.type})</span>
@@ -302,7 +312,7 @@ function NoteCard({ note, onClick, expanded, onVerify }: {
                 </div>
               )}
 
-              {note.verificationStatus === 'pending' && (
+              {fullNote.verificationStatus === 'pending' && (
                 <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
                   <button
                     onClick={() => handleVerify('verify')}

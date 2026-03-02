@@ -10,6 +10,8 @@ interface AuthContextType {
   googleLogin: (idToken: string) => Promise<{ isNewUser: boolean; isProfileComplete: boolean }>;
   selectRole: (role: string) => Promise<void>;
   completeProfile: (data: CompleteProfileData) => Promise<void>;
+  getMe: () => Promise<User>;
+  updateProfile: (data: Partial<CompleteProfileData & { name?: string }>) => Promise<void>;
   logout: () => void;
   setUser: (user: User | null) => void;
 }
@@ -103,8 +105,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const getMe = async (): Promise<User> => {
+    const { data } = await api.get('/auth/me');
+    const userData = data.data;
+    localStorage.setItem('carenet_user', JSON.stringify(userData));
+    setUser(userData);
+    return userData;
+  };
+
+  const updateProfile = async (profileData: Partial<CompleteProfileData & { name?: string }>) => {
+    const { data } = await api.put('/auth/profile', profileData);
+    const userData = data.data;
+    localStorage.setItem('carenet_user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, googleLogin, selectRole, completeProfile, logout, setUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, googleLogin, selectRole, completeProfile, getMe, updateProfile, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

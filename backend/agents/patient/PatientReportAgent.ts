@@ -7,7 +7,7 @@
 import { BedrockAgent } from '../core/BedrockAgent.js';
 import type { ToolDefinition, AgentContext } from '../core/types.js';
 
-const MODEL_ID = process.env.BEDROCK_MODEL_ID || 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || 'us.amazon.nova-premier-v1:0';
 
 // ── Tool: structured output ─────────────────────────────────────────────────
 
