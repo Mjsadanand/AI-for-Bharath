@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import { Card, Badge, StatCard, EmptyState, PageHeader, Skeleton } from '../../components/ui/Cards';
 import { cn } from '../../lib/utils';
@@ -29,10 +30,19 @@ import {
   Copy,
   Check,
   X,
+  GitBranch,
+  ArrowRight,
+  Brain,
+  ClipboardList,
+  FlaskConical,
+  DollarSign,
+  Zap,
+  Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { isAxiosError } from 'axios';
 import type { Patient, User, ClinicalNote } from '../../types';
-import WorkflowNav from '../../components/ui/WorkflowNav';
+import { usePatient } from '../../contexts/PatientContext';
 
 const stagger = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
@@ -52,6 +62,7 @@ function getAvatarGradient(name: string) {
 }
 
 export default function PatientsPage() {
+  const { selectPatient: setGlobalPatient, selectedPatient: ctxPatient } = usePatient();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -80,7 +91,11 @@ export default function PatientsPage() {
   const fetchPatientDetail = async (id: string) => {
     try {
       const { data } = await api.get(`/patients/${id}`);
-      setSelectedPatient(data.data);
+      const p = data.data as Patient;
+      setSelectedPatient(p);
+      // Also set global patient context for workflow
+      const u = typeof p.userId === 'object' ? (p.userId as User) : null;
+      if (u) setGlobalPatient({ _id: p._id, name: u.name, patientCode: p.patientCode });
     } catch {
       toast.error('Failed to load patient details');
     }
@@ -110,7 +125,6 @@ export default function PatientsPage() {
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-6">
-      <WorkflowNav />
 
       <motion.div variants={fadeUp}>
         <PageHeader
@@ -118,17 +132,15 @@ export default function PatientsPage() {
           title="Patients"
           description="View and manage patient records"
           badge={`${patients.length} registered`}
+          actions={
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl hover:from-primary-700 hover:to-primary-800 shadow-sm hover:shadow-md transition-all"
+            >
+              <UserPlus className="w-4 h-4" /> Create New Patient
+            </button>
+          }
         />
-      </motion.div>
-
-      {/* Create Patient Button */}
-      <motion.div variants={fadeUp}>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary-600 to-primary-700 rounded-xl hover:from-primary-700 hover:to-primary-800 shadow-sm hover:shadow-md transition-all"
-        >
-          <UserPlus className="w-4 h-4" /> Create New Patient
-        </button>
       </motion.div>
 
       {/* Search */}
@@ -265,7 +277,8 @@ export default function PatientsPage() {
 function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => void }) {
   const user = typeof patient.userId === 'object' ? (patient.userId as User) : null;
   const name = user?.name || 'Unknown';
-  const latestVitals = patient.vitalSigns?.[patient.vitalSigns.length - 1];
+  const navigate = useNavigate();
+  const { selectPatient: setGlobalPatient } = usePatient();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showVitalsModal, setShowVitalsModal] = useState(false);
   const [showMedModal, setShowMedModal] = useState(false);
@@ -275,26 +288,54 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
   const [latestRisk, setLatestRisk] = useState<{ overallRisk?: string; confidence?: number; riskScores?: Array<{ category: string; score: number; level: string }>; predictions?: Array<{ condition: string; probability: number; timeframe: string }> } | null>(null);
   const [riskLoading, setRiskLoading] = useState(true);
 
+  // AI progress / history data
+  const [appointments, setAppointments] = useState<Array<{ _id: string; scheduledDate: string; type: string; status: string; reason: string; doctorId?: { name: string; specialization?: string } }>>([]);
+  const [claims, setClaims] = useState<Array<{ _id: string; claimNumber: string; insuranceProvider: string; totalAmount: number; status: string; submittedDate?: string }>>([]);
+  const [labResults, setLabResults] = useState<Array<{ _id: string; testName: string; category: string; status: string; completedDate?: string; results?: Array<{ parameter: string; value: number | string; unit: string; status: string }> }>>([]);
+  const [allRiskAssessments, setAllRiskAssessments] = useState<Array<{ _id: string; overallRisk: string; confidence?: number; createdAt: string }>>([]);
+  const [pipelineStatus, setPipelineStatus] = useState<Record<string, unknown> | null>(null);
+  const [progressLoading, setProgressLoading] = useState(true);
+  const [showProgressTab, setShowProgressTab] = useState<'appointments' | 'claims' | 'labs' | 'assessments' | 'pipeline'>('appointments');
+
   useEffect(() => {
+    const fetchPatientNotes = async () => {
+      try {
+        const { data } = await api.get(`/clinical-docs/patient/${patient._id}`);
+        setPatientNotes(data.data || []);
+      } catch { console.error('Failed to fetch patient notes'); }
+      finally { setNotesLoading(false); }
+    };
+
+    const fetchLatestRisk = async () => {
+      try {
+        const { data } = await api.get(`/predictive/latest/${patient._id}`);
+        setLatestRisk(data.data || null);
+      } catch { /* patient may not have a risk assessment yet */ }
+      finally { setRiskLoading(false); }
+    };
+
+    const fetchProgressData = async () => {
+      try {
+        const [apptRes, claimRes, labRes, riskRes, pipeRes] = await Promise.allSettled([
+          api.get('/workflow/appointments', { params: { patientId: patient._id, limit: 50 } }),
+          api.get('/workflow/claims', { params: { patientId: patient._id, limit: 50 } }),
+          api.get('/workflow/labs', { params: { patientId: patient._id, limit: 50 } }),
+          api.get(`/predictive/patient/${patient._id}`),
+          api.get(`/pipeline/status/${patient._id}`),
+        ]);
+        if (apptRes.status === 'fulfilled') setAppointments(apptRes.value.data.data || []);
+        if (claimRes.status === 'fulfilled') setClaims(claimRes.value.data.data || []);
+        if (labRes.status === 'fulfilled') setLabResults(labRes.value.data.data || []);
+        if (riskRes.status === 'fulfilled') setAllRiskAssessments(riskRes.value.data.data || []);
+        if (pipeRes.status === 'fulfilled') setPipelineStatus(pipeRes.value.data.data || null);
+      } catch { /* ignore */ }
+      finally { setProgressLoading(false); }
+    };
+
     fetchPatientNotes();
     fetchLatestRisk();
-  }, []);
-
-  const fetchPatientNotes = async () => {
-    try {
-      const { data } = await api.get(`/clinical-docs/patient/${patient._id}`);
-      setPatientNotes(data.data || []);
-    } catch { console.error('Failed to fetch patient notes'); }
-    finally { setNotesLoading(false); }
-  };
-
-  const fetchLatestRisk = async () => {
-    try {
-      const { data } = await api.get(`/predictive/latest/${patient._id}`);
-      setLatestRisk(data.data || null);
-    } catch { /* patient may not have a risk assessment yet */ }
-    finally { setRiskLoading(false); }
-  };
+    fetchProgressData();
+  }, [patient._id]);
 
   const refreshPatient = async () => {
     try {
@@ -316,6 +357,7 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
         <button onClick={onBack} className="group flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 mb-4 transition-colors">
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /> Back to patients
         </button>
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className={cn(
@@ -341,7 +383,7 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
             </div>
           </div>
           {/* Action buttons */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button onClick={() => setShowEditModal(true)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 transition-all">
               <Pencil className="w-3.5 h-3.5" /> Edit
             </button>
@@ -350,6 +392,17 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
             </button>
             <button onClick={() => setShowMedModal(true)} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-xl hover:from-emerald-100 hover:to-green-100 text-emerald-700 transition-all">
               <Plus className="w-3.5 h-3.5" /> Medication
+            </button>
+            <button
+              onClick={() => {
+                const u = typeof patient.userId === 'object' ? (patient.userId as User) : null;
+                if (u) setGlobalPatient({ _id: patient._id, name: u.name, patientCode: patient.patientCode });
+                navigate('/clinical-docs');
+              }}
+              className="flex items-center gap-1.5 px-5 py-2.5 text-xs font-semibold bg-gradient-to-r from-primary-600 to-blue-600 text-white rounded-xl hover:from-primary-700 hover:to-blue-700 shadow-lg shadow-primary-500/25 transition-all"
+            >
+              <Sparkles className="w-4 h-4" /> Start AI Screening
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -578,6 +631,199 @@ function PatientDetail({ patient, onBack }: { patient: Patient; onBack: () => vo
         </Card>
       </motion.div>
 
+      {/* AI Progress & History */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-100 to-blue-100 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-primary-600" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-800">AI Progress & History</h3>
+              <p className="text-xs text-slate-500">All AI agent results and workflow data for this patient</p>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex border-b border-slate-200 overflow-x-auto">
+            {([
+              { key: 'appointments', label: 'Appointments', icon: Calendar, count: appointments.length },
+              { key: 'claims', label: 'Claims', icon: DollarSign, count: claims.length },
+              { key: 'labs', label: 'Lab Results', icon: FlaskConical, count: labResults.length },
+              { key: 'assessments', label: 'Risk History', icon: Brain, count: allRiskAssessments.length },
+              { key: 'pipeline', label: 'Pipeline', icon: GitBranch, count: pipelineStatus ? 1 : 0 },
+            ] as const).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setShowProgressTab(tab.key)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-3 text-xs font-medium whitespace-nowrap transition-all border-b-2',
+                  showProgressTab === tab.key
+                    ? 'text-primary-600 border-primary-600 bg-primary-50/50'
+                    : 'text-slate-500 border-transparent hover:text-slate-700 hover:bg-slate-50'
+                )}
+              >
+                <tab.icon className="w-3.5 h-3.5" />
+                {tab.label}
+                {tab.count > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-primary-100 text-primary-700">{tab.count}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-5">
+            {progressLoading ? (
+              <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-14" />)}</div>
+            ) : (
+              <>
+                {/* Appointments */}
+                {showProgressTab === 'appointments' && (
+                  appointments.length > 0 ? (
+                    <div className="space-y-2">
+                      {appointments.map((appt) => (
+                        <div key={appt._id} className="flex items-center justify-between p-3 bg-slate-50/80 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center">
+                              <Calendar className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">{appt.reason || appt.type}</p>
+                              <p className="text-xs text-slate-500">
+                                {new Date(appt.scheduledDate).toLocaleDateString()} &middot; {appt.type}
+                                {appt.doctorId && typeof appt.doctorId === 'object' && ` &middot; Dr. ${appt.doctorId.name}`}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant={appt.status === 'completed' ? 'success' : appt.status === 'cancelled' ? 'danger' : 'warning'} dot>{appt.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="text-sm text-slate-400 italic text-center py-6">No appointments found</p>
+                )}
+
+                {/* Claims */}
+                {showProgressTab === 'claims' && (
+                  claims.length > 0 ? (
+                    <div className="space-y-2">
+                      {claims.map((claim) => (
+                        <div key={claim._id} className="flex items-center justify-between p-3 bg-slate-50/80 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-100 to-green-100 flex items-center justify-center">
+                              <DollarSign className="w-4 h-4 text-emerald-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">{claim.insuranceProvider} — {claim.claimNumber}</p>
+                              <p className="text-xs text-slate-500">${claim.totalAmount?.toLocaleString()} &middot; {claim.submittedDate ? new Date(claim.submittedDate).toLocaleDateString() : 'Pending'}</p>
+                            </div>
+                          </div>
+                          <Badge variant={claim.status === 'approved' ? 'success' : claim.status === 'denied' ? 'danger' : 'warning'} dot>{claim.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="text-sm text-slate-400 italic text-center py-6">No insurance claims found</p>
+                )}
+
+                {/* Labs */}
+                {showProgressTab === 'labs' && (
+                  labResults.length > 0 ? (
+                    <div className="space-y-2">
+                      {labResults.map((lab) => (
+                        <div key={lab._id} className="p-3 bg-slate-50/80 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
+                                <FlaskConical className="w-4 h-4 text-violet-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800">{lab.testName}</p>
+                                <p className="text-xs text-slate-500">{lab.category} &middot; {lab.completedDate ? new Date(lab.completedDate).toLocaleDateString() : 'In progress'}</p>
+                              </div>
+                            </div>
+                            <Badge variant={lab.status === 'completed' ? 'success' : lab.status === 'cancelled' ? 'danger' : 'warning'} dot>{lab.status}</Badge>
+                          </div>
+                          {lab.results && lab.results.length > 0 && (
+                            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-1.5 pl-12">
+                              {lab.results.slice(0, 6).map((r, i) => (
+                                <div key={i} className={cn('px-2 py-1 rounded-lg text-xs', r.status === 'abnormal' || r.status === 'critical' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700')}>
+                                  <span className="font-medium">{r.parameter}:</span> {r.value} {r.unit}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="text-sm text-slate-400 italic text-center py-6">No lab results found</p>
+                )}
+
+                {/* All Risk Assessments */}
+                {showProgressTab === 'assessments' && (
+                  allRiskAssessments.length > 0 ? (
+                    <div className="space-y-2">
+                      {allRiskAssessments.map((ra) => (
+                        <div key={ra._id} className="flex items-center justify-between p-3 bg-slate-50/80 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
+                              <Brain className="w-4 h-4 text-amber-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">Risk Assessment</p>
+                              <p className="text-xs text-slate-500">
+                                {new Date(ra.createdAt).toLocaleDateString()} &middot; Confidence: {ra.confidence != null ? `${Math.round(ra.confidence * 100)}%` : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant={ra.overallRisk === 'critical' || ra.overallRisk === 'high' ? 'danger' : ra.overallRisk === 'moderate' ? 'warning' : 'success'} dot size="md">
+                            {ra.overallRisk?.toUpperCase()}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="text-sm text-slate-400 italic text-center py-6">No risk assessments found</p>
+                )}
+
+                {/* Pipeline Status */}
+                {showProgressTab === 'pipeline' && (
+                  pipelineStatus ? (
+                    <div className="space-y-3">
+                      {['step1', 'step2', 'step3', 'step4', 'step5'].map((stepKey, idx) => {
+                        const stepData = pipelineStatus[stepKey] as { status?: string; completedAt?: string; data?: Record<string, unknown> } | undefined;
+                        const stepLabels = ['Patient Interaction', 'Clinical Docs AI', 'Predictive Engine', 'Workflow Auto', 'Research Synth'];
+                        const stepColors = ['from-blue-100 to-cyan-100 text-blue-600', 'from-indigo-100 to-violet-100 text-indigo-600', 'from-amber-100 to-orange-100 text-amber-600', 'from-purple-100 to-fuchsia-100 text-purple-600', 'from-emerald-100 to-green-100 text-emerald-600'];
+                        const StepIcon = [UserCircle, FileText, Brain, ClipboardList, FlaskConical][idx];
+                        return (
+                          <div key={stepKey} className="flex items-center justify-between p-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                            <div className="flex items-center gap-3">
+                              <div className={cn('w-9 h-9 rounded-lg bg-gradient-to-br flex items-center justify-center', stepColors[idx])}>
+                                <StepIcon className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800">Step {idx + 1}: {stepLabels[idx]}</p>
+                                <p className="text-xs text-slate-500">
+                                  {stepData?.completedAt ? new Date(stepData.completedAt).toLocaleString() : 'Not run yet'}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge
+                              variant={stepData?.status === 'completed' ? 'success' : stepData?.status === 'error' ? 'danger' : stepData?.status === 'running' ? 'info' : 'default'}
+                              dot
+                            >
+                              {stepData?.status || 'pending'}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : <p className="text-sm text-slate-400 italic text-center py-6">No pipeline runs found for this patient</p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </motion.div>
+
       {/* Modals */}
       <AnimatePresence>
         {showEditModal && <EditPatientModal patient={currentPatient} onClose={() => setShowEditModal(false)} onSaved={() => { setShowEditModal(false); refreshPatient(); }} />}
@@ -638,7 +884,7 @@ function EditPatientModal({ patient, onClose, onSaved }: { patient: Patient; onC
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-800">Edit Patient</h2>
@@ -694,7 +940,7 @@ function AddVitalsModal({ patientId, onClose, onSaved }: { patientId: string; on
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-800">Add Vital Signs</h2>
@@ -763,7 +1009,7 @@ function AddMedicationModal({ patientId, onClose, onSaved }: { patientId: string
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-800">Add Medication</h2>
@@ -819,6 +1065,32 @@ interface CreatePatientForm {
   riskFactors: Array<{ factor: string; severity: string }>;
 }
 
+interface VitalSignsPayload {
+  bloodPressure?: { systolic: number; diastolic: number };
+  heartRate?: number;
+  temperature?: number;
+  weight?: number;
+  height?: number;
+  oxygenSaturation?: number;
+}
+
+interface CreatePatientPayload {
+  name: string;
+  email: string;
+  dateOfBirth: string;
+  gender: string;
+  emergencyContact?: { name: string; phone: string; relation: string };
+  phone?: string;
+  bloodGroup?: string;
+  allergies?: string[];
+  chronicConditions?: string[];
+  insurance?: { provider: string; policyNumber: string; expiryDate: string };
+  medicalHistory?: Array<{ condition: string; diagnosedDate: string; status: string; notes: string }>;
+  medications?: Array<{ name: string; dosage: string; frequency: string; startDate: string }>;
+  vitalSigns?: VitalSignsPayload;
+  riskFactors?: Array<{ factor: string; severity: string }>;
+}
+
 const emptyForm: CreatePatientForm = {
   name: '', email: '', phone: '', dateOfBirth: '', gender: '', bloodGroup: '',
   emergencyContact: { name: '', phone: '', relation: '' },
@@ -842,15 +1114,14 @@ function CreatePatientModal({ onClose, onCreated }: { onClose: () => void; onCre
 
   const toggleSection = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
 
-  const updateField = (field: keyof CreatePatientForm, value: any) => setForm(prev => ({ ...prev, [field]: value }));
+  const updateField = <K extends keyof CreatePatientForm>(field: K, value: CreatePatientForm[K]) => setForm(prev => ({ ...prev, [field]: value }));
   const updateNested = (parent: 'emergencyContact' | 'insurance' | 'vitalSigns', field: string, value: string) =>
     setForm(prev => ({ ...prev, [parent]: { ...prev[parent], [field]: value } }));
 
   // Validation per step
   const canProceed = () => {
     if (step === 0) {
-      return form.name && form.email && form.dateOfBirth && form.gender &&
-        form.emergencyContact.name && form.emergencyContact.phone && form.emergencyContact.relation;
+      return form.name && form.email && form.dateOfBirth && form.gender;
     }
     return true;
   };
@@ -858,13 +1129,13 @@ function CreatePatientModal({ onClose, onCreated }: { onClose: () => void; onCre
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const payload: Record<string, any> = {
+      const payload: CreatePatientPayload = {
         name: form.name,
         email: form.email,
         dateOfBirth: form.dateOfBirth,
         gender: form.gender,
-        emergencyContact: form.emergencyContact,
       };
+      if (form.emergencyContact.name || form.emergencyContact.phone || form.emergencyContact.relation) payload.emergencyContact = form.emergencyContact;
       if (form.phone) payload.phone = form.phone;
       if (form.bloodGroup) payload.bloodGroup = form.bloodGroup;
       if (form.allergies) payload.allergies = form.allergies.split(',').map(s => s.trim()).filter(Boolean);
@@ -874,7 +1145,7 @@ function CreatePatientModal({ onClose, onCreated }: { onClose: () => void; onCre
       if (form.medications.length > 0) payload.medications = form.medications;
 
       // Vital signs
-      const vs: Record<string, any> = {};
+      const vs: VitalSignsPayload = {};
       if (form.vitalSigns.systolic && form.vitalSigns.diastolic) vs.bloodPressure = { systolic: +form.vitalSigns.systolic, diastolic: +form.vitalSigns.diastolic };
       if (form.vitalSigns.heartRate) vs.heartRate = +form.vitalSigns.heartRate;
       if (form.vitalSigns.temperature) vs.temperature = +form.vitalSigns.temperature;
@@ -892,8 +1163,8 @@ function CreatePatientModal({ onClose, onCreated }: { onClose: () => void; onCre
         tempPassword: data.tempPassword,
         message: data.message,
       });
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to create patient');
+    } catch (err: unknown) {
+      toast.error(isAxiosError(err) ? err.response?.data?.message || 'Failed to create patient' : 'Failed to create patient');
     } finally {
       setSubmitting(false);
     }
@@ -910,7 +1181,7 @@ function CreatePatientModal({ onClose, onCreated }: { onClose: () => void; onCre
   // ── Success screen ──
   if (result) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-md">
           <div className="p-8 text-center space-y-5">
             <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center">
@@ -947,7 +1218,7 @@ function CreatePatientModal({ onClose, onCreated }: { onClose: () => void; onCre
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
@@ -1016,18 +1287,18 @@ function CreatePatientModal({ onClose, onCreated }: { onClose: () => void; onCre
 
               {/* Emergency Contact */}
               <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 space-y-3">
-                <p className="text-sm font-bold text-rose-700 flex items-center gap-2"><Shield className="w-4 h-4" /> Emergency Contact *</p>
+                <p className="text-sm font-bold text-rose-700 flex items-center gap-2"><Shield className="w-4 h-4" /> Emergency Contact <span className="text-xs font-normal text-slate-400">(optional)</span></p>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Name *</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Name</label>
                     <input type="text" value={form.emergencyContact.name} onChange={e => updateNested('emergencyContact', 'name', e.target.value)} className={inputClass} placeholder="Jane Smith" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Phone *</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Phone</label>
                     <input type="tel" value={form.emergencyContact.phone} onChange={e => updateNested('emergencyContact', 'phone', e.target.value)} className={inputClass} placeholder="555-0199" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Relation *</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Relation</label>
                     <input type="text" value={form.emergencyContact.relation} onChange={e => updateNested('emergencyContact', 'relation', e.target.value)} className={inputClass} placeholder="Spouse" />
                   </div>
                 </div>

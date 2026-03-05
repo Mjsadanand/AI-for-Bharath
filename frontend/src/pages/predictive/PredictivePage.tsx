@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import { Badge, StatCard, EmptyState, Skeleton, PageHeader, ProgressBar } from '../../components/ui/Cards';
 import {
@@ -15,9 +16,11 @@ import {
   Heart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { RiskAssessment } from '../../types';
+import type { RiskAssessment, Patient, User } from '../../types';
 import WorkflowNav from '../../components/ui/WorkflowNav';
+import PatientRequiredGuard from '../../components/ui/PatientRequiredGuard';
 import { cn } from '../../lib/utils';
+import { usePatient } from '../../contexts/PatientContext';
 
 const stagger = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
@@ -31,8 +34,17 @@ export default function PredictivePage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [patientIdInput, setPatientIdInput] = useState('');
   const [assessing, setAssessing] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [searchParams] = useSearchParams();
+  const { selectedPatient: ctxPatient } = usePatient();
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+    fetchPatients();
+    // Set patient from context/query
+    const qp = searchParams.get('patient') || ctxPatient?._id || '';
+    if (qp) setPatientIdInput(qp);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -43,6 +55,13 @@ export default function PredictivePage() {
       setAssessments(assessRes.data.data || []);
       setAlerts(alertRes.data.data || []);
     } catch { console.error('Failed to fetch data'); } finally { setLoading(false); }
+  };
+
+  const fetchPatients = async () => {
+    try {
+      const { data } = await api.get('/patients');
+      setPatients(data.data || []);
+    } catch { /* ignore */ }
   };
 
   const handleNewAssessment = async (e: React.FormEvent) => {
@@ -73,6 +92,9 @@ export default function PredictivePage() {
     return map[risk] || map.low;
   };
 
+  /* ── Guard: block access until a patient is selected ── */
+  if (!ctxPatient) return <PatientRequiredGuard>{null}</PatientRequiredGuard>;
+
   if (loading) return (
     <div className="space-y-6">
       <WorkflowNav />
@@ -95,7 +117,13 @@ export default function PredictivePage() {
         <p className="text-sm font-semibold text-slate-700 mb-1">Run Risk Assessment</p>
         <p className="text-xs text-slate-500 mb-3">Enter a patient ID to generate an AI risk assessment</p>
         <form onSubmit={handleNewAssessment} className="flex flex-col sm:flex-row gap-3">
-          <input type="text" value={patientIdInput} onChange={(e) => setPatientIdInput(e.target.value)} className={inputClass} placeholder="Enter patient ID" required />
+          <select value={patientIdInput} onChange={(e) => setPatientIdInput(e.target.value)} className={inputClass} required>
+            <option value="">Select a patient</option>
+            {patients.map((p) => {
+              const u = typeof p.userId === 'object' ? (p.userId as User) : null;
+              return <option key={p._id} value={p._id}>{u?.name || 'Unknown'} {p.patientCode ? `(${p.patientCode})` : ''}</option>;
+            })}
+          </select>
           <button type="submit" disabled={assessing} className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-semibold hover:from-primary-700 hover:to-primary-800 disabled:opacity-50 transition-all shadow-sm shadow-primary-500/20">
             {assessing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><BarChart3 className="w-4 h-4" />Assess Risk</>}
           </button>

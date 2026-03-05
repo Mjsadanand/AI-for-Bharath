@@ -11,10 +11,9 @@ import { handleControllerError } from '../middleware/errorHandler.js';
 // @route   POST /api/pipeline/run/:patientId
 // Step 1: Doctor → Patient (fetch patient data)
 // Step 2: Clinical Documentation AI (generate clinical note)
-// Step 3: Patient Translator (simplify the report)
-// Step 4: Predictive Engine (analyze health data)
-// Step 5: Workflow Automation (create follow-up tasks)
-// Step 6: Research Synthesizer (find relevant research)
+// Step 3: Predictive Engine (analyze health data)
+// Step 4: Workflow Automation (create follow-up tasks)
+// Step 5: Research Synthesizer (find relevant research)
 export const runPipeline = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { patientId } = req.params;
@@ -87,47 +86,7 @@ export const runPipeline = async (req: AuthRequest, res: Response): Promise<void
     });
 
     // ═══════════════════════════════════════════
-    // STEP 3: Patient Translator
-    // ═══════════════════════════════════════════
-    const medicalTerms: Record<string, string> = {
-      'hypertension': 'high blood pressure',
-      'hyperlipidemia': 'high cholesterol',
-      'diabetes mellitus': 'diabetes',
-      'tachycardia': 'fast heart rate',
-      'dyspnea': 'difficulty breathing',
-      'edema': 'swelling',
-      'anemia': 'low red blood cells',
-    };
-
-    let reportText = `Chief Complaint: ${clinicalNote.chiefComplaint}\n`;
-    reportText += `Assessment: ${clinicalNote.assessment.map((a) => a.diagnosis).join(', ')}\n`;
-    reportText += `Plan: ${clinicalNote.plan.map((p) => p.treatment).join('; ')}\n`;
-
-    let simplifiedText = reportText;
-    const translatedTerms: { original: string; simplified: string }[] = [];
-
-    Object.entries(medicalTerms).forEach(([term, explanation]) => {
-      const regex = new RegExp(`\\b${term}\\b`, 'gi');
-      if (regex.test(simplifiedText)) {
-        translatedTerms.push({ original: term, simplified: explanation });
-        simplifiedText = simplifiedText.replace(regex, `${term} (${explanation})`);
-      }
-    });
-
-    pipelineResults.steps.push({
-      step: 3,
-      name: 'Patient Translator',
-      status: 'completed',
-      data: {
-        originalText: reportText.trim(),
-        simplifiedText: simplifiedText.trim(),
-        translatedTerms,
-        termsSimplified: translatedTerms.length,
-      },
-    });
-
-    // ═══════════════════════════════════════════
-    // STEP 4: Predictive Engine
+    // STEP 3: Predictive Engine
     // ═══════════════════════════════════════════
     const riskScores = calculatePatientRisk(patient);
     const maxScore = Math.max(...riskScores.map((r) => r.score));
@@ -166,7 +125,7 @@ export const runPipeline = async (req: AuthRequest, res: Response): Promise<void
     });
 
     pipelineResults.steps.push({
-      step: 4,
+      step: 3,
       name: 'Predictive Engine',
       status: 'completed',
       data: {
@@ -180,7 +139,7 @@ export const runPipeline = async (req: AuthRequest, res: Response): Promise<void
     });
 
     // ═══════════════════════════════════════════
-    // STEP 5: Workflow Automation
+    // STEP 4: Workflow Automation
     // ═══════════════════════════════════════════
     const workflowActions: any[] = [];
 
@@ -223,7 +182,7 @@ export const runPipeline = async (req: AuthRequest, res: Response): Promise<void
     }
 
     pipelineResults.steps.push({
-      step: 5,
+      step: 4,
       name: 'Workflow Automation',
       status: 'completed',
       data: {
@@ -233,7 +192,7 @@ export const runPipeline = async (req: AuthRequest, res: Response): Promise<void
     });
 
     // ═══════════════════════════════════════════
-    // STEP 6: Research Synthesizer
+    // STEP 5: Research Synthesizer
     // ═══════════════════════════════════════════
     const conditions = [
       ...patient.chronicConditions,
@@ -255,7 +214,7 @@ export const runPipeline = async (req: AuthRequest, res: Response): Promise<void
     }
 
     pipelineResults.steps.push({
-      step: 6,
+      step: 5,
       name: 'Research Synthesizer',
       status: 'completed',
       data: {
@@ -317,21 +276,16 @@ export const getPipelineStatus = async (req: AuthRequest, res: Response): Promis
         data: latestNote ? { noteId: latestNote._id, date: latestNote.createdAt, status: latestNote.verificationStatus } : null,
       },
       step3: {
-        name: 'Patient Translator',
-        completed: !!latestNote,
-        data: latestNote ? { available: true, noteId: latestNote._id } : null,
-      },
-      step4: {
         name: 'Predictive Engine',
         completed: !!latestAssessment,
         data: latestAssessment ? { assessmentId: latestAssessment._id, overallRisk: latestAssessment.overallRisk, date: latestAssessment.createdAt } : null,
       },
-      step5: {
+      step4: {
         name: 'Workflow Automation',
         completed: upcomingAppointments.length > 0,
         data: { upcomingAppointments: upcomingAppointments.length },
       },
-      step6: {
+      step5: {
         name: 'Research Synthesizer',
         completed: relevantPapers.length > 0,
         data: { papersAvailable: relevantPapers.length },

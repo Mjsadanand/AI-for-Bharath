@@ -3,8 +3,10 @@ import Appointment from '../models/Appointment.js';
 import InsuranceClaim from '../models/InsuranceClaim.js';
 import LabResult from '../models/LabResult.js';
 import Patient from '../models/Patient.js';
+import ClinicalNote from '../models/ClinicalNote.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { handleControllerError } from '../middleware/errorHandler.js';
+import { createWorkflowAgent } from '../agents/workflow/WorkflowAgent.js';
 
 // ============ APPOINTMENTS ============
 
@@ -50,11 +52,15 @@ export const createAppointment = async (req: AuthRequest, res: Response): Promis
 // @route   GET /api/workflow/appointments
 export const getAppointments = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { status, date, page = '1', limit = '20' } = req.query;
+    const { status, date, page = '1', limit = '20', patientId: qPatientId } = req.query;
     const query: any = {};
 
-    if (req.user?.role === 'doctor') query.doctorId = req.user._id;
-    if (req.user?.role === 'patient') {
+    // Allow explicit patientId filter (for doctor/admin viewing a specific patient)
+    if (qPatientId) {
+      query.patientId = qPatientId;
+    } else if (req.user?.role === 'doctor') {
+      query.doctorId = req.user._id;
+    } else if (req.user?.role === 'patient') {
       const patient = await Patient.findOne({ userId: req.user._id });
       if (patient) query.patientId = patient._id;
     }
@@ -155,10 +161,15 @@ export const createClaim = async (req: AuthRequest, res: Response): Promise<void
 // @route   GET /api/workflow/claims
 export const getClaims = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { status, page = '1', limit = '10' } = req.query;
+    const { status, page = '1', limit = '10', patientId: qPatientId } = req.query;
     const query: any = {};
 
-    if (req.user?.role === 'doctor') query.providerId = req.user._id;
+    // Allow explicit patientId filter (for doctor/admin viewing a specific patient)
+    if (qPatientId) {
+      query.patientId = qPatientId;
+    } else if (req.user?.role === 'doctor') {
+      query.providerId = req.user._id;
+    }
     if (status) query.status = status;
 
     const pageNum = parseInt(page as string);
@@ -306,5 +317,129 @@ export const updateLabResult = async (req: AuthRequest, res: Response): Promise<
     res.json({ success: true, data: lab });
   } catch (error: any) {
     handleControllerError(res, error, 'Failed to update lab result');
+  }
+};
+
+// ============ WORKFLOW AI AGENT ============
+
+// @desc    Auto-generate workflow actions from a clinical note using the AI agent
+// @route   POST /api/workflow/auto-generate
+// @access  Doctor, Admin
+export const autoGenerateWorkflow = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { clinicalNoteId, patientId } = req.body;
+
+    if (!clinicalNoteId) {
+      res.status(400).json({ success: false, message: 'clinicalNoteId is required' });
+      return;
+    }
+
+    // ── Fetch clinical note ──────────────────────────────────────────────
+    const note = await ClinicalNote.findById(clinicalNoteId)
+      .populate('patientId')
+      .populate('providerId', 'name specialization _id')
+      .lean();
+
+    if (!note) {
+      res.status(404).json({ success: false, message: 'Clinical note not found' });
+      return;
+    }
+
+    const resolvedPatientId = patientId || String((note as any).patientId?._id || (note as any).patientId);
+
+    // ── Fetch full patient profile ───────────────────────────────────────
+    const patient = await Patient.findById(resolvedPatientId)
+      .populate('userId', 'name email phone')
+      .lean();
+
+    if (!patient) {
+      res.status(404).json({ success: false, message: 'Patient not found' });
+      return;
+    }
+
+    const providerIdStr = String((note as any).providerId?._id || (note as any).providerId || req.user!._id);
+    const patientName = (patient as any).userId?.name || 'Unknown patient';
+    const latestVitals = (patient as any).vitalSigns?.at(-1);
+
+    // ── Build rich context prompt ────────────────────────────────────────
+    const contextMessage = `
+You are the CARENET Workflow Automation Agent. A new clinical note has been created. Your job is to autonomously create the appropriate follow-up workflow actions.
+
+## Patient Information
+- **Patient ID**: ${resolvedPatientId}
+- **Name**: ${patientName}
+- **Date of Birth**: ${(patient as any).dateOfBirth ? new Date((patient as any).dateOfBirth).toLocaleDateString() : 'N/A'}
+- **Blood Group**: ${(patient as any).bloodGroup || 'Unknown'}
+- **Chronic Conditions**: ${(patient as any).chronicConditions?.join(', ') || 'None documented'}
+- **Known Allergies**: ${(patient as any).allergies?.join(', ') || 'NKDA'}
+- **Current Medications**: ${(patient as any).medications?.map((m: any) => `${m.name} ${m.dosage} ${m.frequency}`).join('; ') || 'None'}
+- **Insurance Provider**: ${(patient as any).insurance?.provider || 'Not on file'}
+- **Policy Number**: ${(patient as any).insurance?.policyNumber || 'N/A'}
+${latestVitals ? `- **Latest Vitals** (recorded ${new Date(latestVitals.recordedAt || Date.now()).toLocaleDateString()}):
+  - BP: ${latestVitals.bloodPressure?.systolic || '?'}/${latestVitals.bloodPressure?.diastolic || '?'} mmHg
+  - HR: ${latestVitals.heartRate || '?'} bpm
+  - Temp: ${latestVitals.temperature || '?'} °F
+  - Weight: ${latestVitals.weight || '?'} kg
+  - SpO2: ${latestVitals.oxygenSaturation || '?'}%` : ''}
+
+## Clinical Note (ID: ${clinicalNoteId})
+- **Note Type**: ${(note as any).noteType}
+- **Date**: ${new Date((note as any).createdAt).toLocaleDateString()}
+- **Chief Complaint**: ${(note as any).chiefComplaint || 'N/A'}
+- **History of Present Illness**: ${(note as any).historyOfPresentIllness || 'N/A'}
+- **Assessment / Diagnoses**:
+${((note as any).assessment || []).map((a: any) => `  - ${a.diagnosis || a} (severity: ${a.severity || 'unspecified'})`).join('\n') || '  None recorded'}
+- **Plan / Treatments**:
+${((note as any).plan || []).map((p: any) => `  - ${p.treatment || p}`).join('\n') || '  None recorded'}
+- **Prescriptions**: ${((note as any).prescriptions || []).map((p: any) => `${p.medication || p.name} ${p.dosage || ''}`).join(', ') || 'None'}
+- **Transcript excerpt**: ${((note as any).transcript || '').substring(0, 400) || 'N/A'}
+
+## Your Tasks
+1. **APPOINTMENTS**: Use \`get_doctor_schedule\` for doctor ${providerIdStr} then schedule an appropriate follow-up appointment for patient ${resolvedPatientId}. Base urgency on the assessment severity. Today is ${new Date().toISOString()}.
+2. **INSURANCE CLAIM**: If the patient has insurance, create a draft insurance claim using diagnosis and CPT codes derived from the note's assessment and plan. Associate it with clinical note ${clinicalNoteId}.
+3. **LAB ORDERS**: Order any lab tests clinically indicated by the assessment, chronic conditions, and clinical plan. For each test, specify the appropriate parameters.
+
+Proceed autonomously — execute all applicable workflow steps now.
+`.trim();
+
+    // ── Run the Workflow Agent ───────────────────────────────────────────
+    const agent = createWorkflowAgent();
+    const agentContext = {
+      patientId: resolvedPatientId,
+      providerId: providerIdStr,
+      pipelineState: {
+        pipelineId: `manual-${Date.now()}`,
+        patientId: resolvedPatientId,
+        providerId: providerIdStr,
+        clinicalNoteId,
+        clinicalNote: note,
+        stepResults: {},
+        errors: [],
+        startedAt: new Date(),
+        status: 'running' as const,
+      },
+    };
+
+    const result = await agent.run(contextMessage, agentContext);
+
+    res.json({
+      success: true,
+      data: {
+        agentName: result.agentName,
+        summary: result.output,
+        toolCalls: result.toolCalls.map((tc) => ({
+          tool: tc.toolName,
+          success: tc.success,
+          durationMs: tc.durationMs,
+        })),
+        artifacts: result.artifacts,
+        tokensUsed: result.tokensUsed,
+        durationMs: result.durationMs,
+        patientId: resolvedPatientId,
+        clinicalNoteId,
+      },
+    });
+  } catch (error: any) {
+    handleControllerError(res, error, 'Workflow agent failed');
   }
 };

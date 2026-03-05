@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import { Badge, EmptyState, PageHeader, Skeleton } from '../../components/ui/Cards';
 import {
@@ -7,7 +8,6 @@ import {
   Plus,
   Search,
   Mic,
-  MicOff,
   CheckCircle,
   XCircle,
   Clock,
@@ -19,11 +19,21 @@ import {
   Upload,
   Loader2,
   StopCircle,
+  Zap,
+  CalendarDays,
+  Shield,
+  FlaskConical,
+  ArrowRight,
+  RefreshCw,
+  Bot,
+  CheckCircle2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { ClinicalNote, Patient, User } from '../../types';
 import WorkflowNav from '../../components/ui/WorkflowNav';
+import PatientRequiredGuard from '../../components/ui/PatientRequiredGuard';
 import { cn } from '../../lib/utils';
+import { usePatient } from '../../contexts/PatientContext';
 
 const stagger = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
@@ -35,18 +45,23 @@ export default function ClinicalDocsPage() {
   const [loading, setLoading] = useState(true);
   const [showNewNote, setShowNewNote] = useState(false);
   const [selectedNote, setSelectedNote] = useState<ClinicalNote | null>(null);
+  const [workflowTarget, setWorkflowTarget] = useState<{ noteId: string; patientId: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [searchParams] = useSearchParams();
+  const { selectedPatient: ctxPatient } = usePatient();
+  const activePatientId = searchParams.get('patient') || ctxPatient?._id || '';
 
   useEffect(() => {
     fetchNotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterStatus]);
+  }, [filterStatus, activePatientId]);
 
   const fetchNotes = async () => {
     try {
       const params: Record<string, string> = {};
       if (filterStatus) params.status = filterStatus;
+      if (activePatientId) params.patientId = activePatientId;
       const { data } = await api.get('/clinical-docs', { params });
       setNotes(data.data || []);
     } catch (err) {
@@ -60,6 +75,9 @@ export default function ClinicalDocsPage() {
     !searchQuery || note.chiefComplaint?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     note.noteType?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  /* ── Guard: block access until a patient is selected ── */
+  if (!ctxPatient) return <PatientRequiredGuard>{null}</PatientRequiredGuard>;
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="visible" className="space-y-6">
@@ -114,18 +132,24 @@ export default function ClinicalDocsPage() {
           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
       ) : filteredNotes.length > 0 ? (
-        <motion.div variants={stagger} className="space-y-3">
+        <div className="space-y-3">
           {filteredNotes.map((note, idx) => (
-            <motion.div key={note._id} variants={fadeUp} custom={idx}>
+            <motion.div
+              key={note._id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: idx * 0.05 }}
+            >
               <NoteCard
                 note={note}
                 onClick={() => setSelectedNote(selectedNote?._id === note._id ? null : note)}
                 expanded={selectedNote?._id === note._id}
                 onVerify={fetchNotes}
+                onRunWorkflow={(noteId, patientId) => setWorkflowTarget({ noteId, patientId })}
               />
             </motion.div>
           ))}
-        </motion.div>
+        </div>
       ) : (
         <EmptyState
           icon={FileText}
@@ -144,17 +168,39 @@ export default function ClinicalDocsPage() {
 
       {/* New Note Modal */}
       <AnimatePresence>
-        {showNewNote && <NewNoteModal onClose={() => setShowNewNote(false)} onCreated={fetchNotes} />}
+        {showNewNote && (
+          <NewNoteModal
+            onClose={() => setShowNewNote(false)}
+            onCreated={(noteId, patientId) => {
+              fetchNotes();
+              setShowNewNote(false);
+              setWorkflowTarget({ noteId, patientId });
+            }}
+            preselectedPatientId={activePatientId}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Workflow Automator Panel — auto-triggered after note creation */}
+      <AnimatePresence>
+        {workflowTarget && (
+          <WorkflowAutoPanel
+            noteId={workflowTarget.noteId}
+            patientId={workflowTarget.patientId}
+            onClose={() => setWorkflowTarget(null)}
+          />
+        )}
       </AnimatePresence>
     </motion.div>
   );
 }
 
-function NoteCard({ note, onClick, expanded, onVerify }: {
+function NoteCard({ note, onClick, expanded, onVerify, onRunWorkflow }: {
   note: ClinicalNote;
   onClick: () => void;
   expanded: boolean;
   onVerify: () => void;
+  onRunWorkflow?: (noteId: string, patientId: string) => void;
 }) {
   const [fullNote, setFullNote] = useState<ClinicalNote>(note);
 
@@ -312,24 +358,39 @@ function NoteCard({ note, onClick, expanded, onVerify }: {
                 </div>
               )}
 
-              {fullNote.verificationStatus === 'pending' && (
-                <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-100">
+                {fullNote.verificationStatus === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => handleVerify('verify')}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl text-sm font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-sm"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Verify Note
+                    </button>
+                    <button
+                      onClick={() => handleVerify('reject')}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 transition-colors"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Reject
+                    </button>
+                  </>
+                )}
+                {onRunWorkflow && (
                   <button
-                    onClick={() => handleVerify('verify')}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl text-sm font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const rawPatientId = (note as any).patientId?._id || (note as any).patientId;
+                      onRunWorkflow(note._id!, String(rawPatientId || ''));
+                    }}
+                    className="ml-auto flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:from-violet-700 hover:to-indigo-700 transition-all shadow-sm shadow-violet-500/20"
                   >
-                    <CheckCircle className="w-4 h-4" />
-                    Verify Note
+                    <Zap className="w-4 h-4" />
+                    Run AI Workflow
                   </button>
-                  <button
-                    onClick={() => handleVerify('reject')}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 transition-colors"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Reject
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </motion.div>
         )}
@@ -338,7 +399,7 @@ function NoteCard({ note, onClick, expanded, onVerify }: {
   );
 }
 
-function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function NewNoteModal({ onClose, onCreated, preselectedPatientId }: { onClose: () => void; onCreated: (noteId: string, patientId: string) => void; preselectedPatientId?: string }) {
   const [mode, setMode] = useState<'form' | 'transcript'>('form');
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -350,8 +411,9 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [patients, setPatients] = useState<Array<{ _id: string; userId?: { name: string }; patientCode?: string }>>([]);
   const [formData, setFormData] = useState({
-    patientId: '',
+    patientId: preselectedPatientId || '',
     noteType: 'consultation',
     chiefComplaint: '',
     historyOfPresentIllness: '',
@@ -360,6 +422,11 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     plan: '',
     transcript: '',
   });
+
+  // Fetch patients for dropdown
+  useEffect(() => {
+    api.get('/patients').then(res => setPatients(res.data.data || res.data)).catch(() => {});
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -529,15 +596,31 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   // ─── Submit ─────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.patientId) { toast.error('Please select a patient'); return; }
     setLoading(true);
     try {
+      let createdNoteId = '';
       if (mode === 'transcript') {
-        await api.post('/clinical-docs/process-transcript', {
+        // Step 1: Process transcript to get AI suggestions
+        const { data: suggestions } = await api.post('/clinical-docs/process-transcript', {
           patientId: formData.patientId,
           transcript: formData.transcript,
         });
+        const suggested = suggestions.data || {};
+        // Step 2: Create actual clinical note with the AI-generated structure
+        const { data: noteRes } = await api.post('/clinical-docs', {
+          patientId: formData.patientId,
+          noteType: 'consultation',
+          chiefComplaint: suggested.chiefComplaint || 'Transcript consultation',
+          historyOfPresentIllness: suggested.historyOfPresentIllness || formData.transcript,
+          assessment: suggested.assessment || [],
+          plan: suggested.plan || [],
+          transcript: formData.transcript,
+          prescriptions: suggested.prescriptions || [],
+        });
+        createdNoteId = noteRes.data?._id || '';
       } else {
-        await api.post('/clinical-docs', {
+        const { data: noteRes } = await api.post('/clinical-docs', {
           patientId: formData.patientId,
           noteType: formData.noteType,
           chiefComplaint: formData.chiefComplaint,
@@ -546,9 +629,10 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           assessment: formData.assessment ? [{ diagnosis: formData.assessment, severity: 'moderate' }] : [],
           plan: formData.plan ? [{ treatment: formData.plan }] : [],
         });
+        createdNoteId = noteRes.data?._id || '';
       }
-      toast.success('Clinical note created successfully');
-      onCreated();
+      toast.success('Clinical note created — launching Workflow Agent...');
+      onCreated(createdNoteId, formData.patientId);
       onClose();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -563,7 +647,7 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
@@ -600,8 +684,15 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient ID</label>
-              <input type="text" name="patientId" value={formData.patientId} onChange={handleChange} className={inputClass} placeholder="Enter patient ID" required />
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient</label>
+              <select name="patientId" value={formData.patientId} onChange={handleChange} className={inputClass} required>
+                <option value="">Select a patient</option>
+                {patients.map(p => (
+                  <option key={p._id} value={p._id}>
+                    {p.userId?.name || 'Unknown'} {p.patientCode ? `(${p.patientCode})` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
             {mode === 'form' && (
               <div>
@@ -761,6 +852,243 @@ function NewNoteModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
             </button>
           </div>
         </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+/* ══════════════════════════════════════════════════════════════════════
+   WORKFLOW AUTO PANEL
+   Automatically invokes the Workflow Automator AI Agent on a clinical note
+   and displays created appointments, insurance claims & lab orders.
+   ══════════════════════════════════════════════════════════════════════ */
+
+interface WorkflowArtifacts {
+  appointments?: Array<{ id: string; date: string; type: string }>;
+  insuranceClaims?: Array<{ id: string; claimNumber: string; amount: number }>;
+  labOrders?: Array<{ id: string; test: string; priority: string }>;
+}
+
+interface WorkflowResult {
+  summary: string;
+  artifacts: WorkflowArtifacts;
+  toolCalls: Array<{ tool: string; success: boolean; durationMs: number }>;
+  durationMs: number;
+}
+
+function WorkflowAutoPanel({ noteId, patientId, onClose }: { noteId: string; patientId: string; onClose: () => void }) {
+  const [status, setStatus] = useState<'running' | 'done' | 'error'>('running');
+  const [result, setResult] = useState<WorkflowResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const hasFetched = useRef(false);
+
+  useEffect(() => {
+    if (hasFetched.current || !noteId) return;
+    hasFetched.current = true;
+
+    const run = async () => {
+      try {
+        const { data } = await api.post('/workflow/auto-generate', { clinicalNoteId: noteId, patientId }, { timeout: 180_000 });
+        setResult(data.data);
+        setStatus('done');
+      } catch (err: any) {
+        setErrorMsg(err.response?.data?.message || 'Workflow agent failed. Check server logs.');
+        setStatus('error');
+      }
+    };
+    run();
+  }, [noteId, patientId]);
+
+  const artifacts = result?.artifacts || {};
+  const appointments = artifacts.appointments || [];
+  const claims = artifacts.insuranceClaims || [];
+  const labs = artifacts.labOrders || [];
+  const totalActions = appointments.length + claims.length + labs.length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.93, y: 16 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.93, y: 16 }}
+        transition={{ duration: 0.2 }}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-primary-600 px-6 py-5 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                <Bot className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-bold text-base">Workflow Automator</h2>
+                <p className="text-xs text-white/70">AI Agent · Appointments, Claims & Labs</p>
+              </div>
+            </div>
+            {status !== 'running' && (
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="p-6">
+          {/* Running state */}
+          {status === 'running' && (
+            <div className="space-y-5">
+              <div className="flex flex-col items-center gap-3 py-6">
+                <div className="relative">
+                  <div className="w-14 h-14 rounded-full bg-violet-100 flex items-center justify-center">
+                    <Zap className="w-7 h-7 text-violet-600" />
+                  </div>
+                  <div className="absolute inset-0 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+                </div>
+                <p className="text-sm font-semibold text-slate-700">Agent is processing the clinical note...</p>
+                <p className="text-xs text-slate-500 text-center max-w-xs">
+                  Analyzing diagnoses, checking schedules, preparing insurance codes, and ordering labs.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                {[
+                  { icon: CalendarDays, label: 'Scheduling', color: 'text-blue-500 bg-blue-50' },
+                  { icon: Shield, label: 'Insurance', color: 'text-emerald-500 bg-emerald-50' },
+                  { icon: FlaskConical, label: 'Lab Orders', color: 'text-amber-500 bg-amber-50' },
+                ].map(({ icon: Icon, label, color }) => (
+                  <div key={label} className={cn('rounded-xl p-3 flex flex-col items-center gap-1.5', color.split(' ')[1])}>
+                    <Icon className={cn('w-5 h-5', color.split(' ')[0])} />
+                    <span className="text-xs font-medium text-slate-600">{label}</span>
+                    <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Error state */}
+          {status === 'error' && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
+                <XCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-red-800">Agent run failed</p>
+                  <p className="text-xs text-red-600 mt-1">{errorMsg}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setStatus('running'); hasFetched.current = false; }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" /> Retry
+              </button>
+            </div>
+          )}
+
+          {/* Success state */}
+          {status === 'done' && result && (
+            <div className="space-y-4">
+              {/* Summary badge */}
+              <div className="flex items-center gap-2 p-3 bg-violet-50 border border-violet-100 rounded-xl">
+                <CheckCircle2 className="w-5 h-5 text-violet-600 shrink-0" />
+                <p className="text-xs text-violet-800 font-medium">
+                  Agent created {totalActions} workflow action{totalActions !== 1 ? 's' : ''} in {(result.durationMs / 1000).toFixed(1)}s
+                </p>
+              </div>
+
+              {/* Appointments */}
+              {appointments.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <CalendarDays className="w-3.5 h-3.5 text-blue-500" /> Appointments Scheduled
+                  </p>
+                  <div className="space-y-1.5">
+                    {appointments.map((a, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-100 rounded-lg text-xs">
+                        <span className="font-semibold text-blue-800 capitalize">{a.type.replace('_', ' ')}</span>
+                        <span className="text-blue-600">·</span>
+                        <span className="text-blue-700">{new Date(a.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Insurance Claims */}
+              {claims.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-emerald-500" /> Insurance Claims Created
+                  </p>
+                  <div className="space-y-1.5">
+                    {claims.map((c, i) => (
+                      <div key={i} className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-100 rounded-lg text-xs">
+                        <span className="font-mono font-semibold text-emerald-800">{c.claimNumber}</span>
+                        <span className="text-emerald-700 font-semibold">${c.amount?.toLocaleString()}</span>
+                        <span className="text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">draft</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Lab Orders */}
+              {labs.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <FlaskConical className="w-3.5 h-3.5 text-amber-500" /> Lab Orders Placed
+                  </p>
+                  <div className="space-y-1.5">
+                    {labs.map((l, i) => (
+                      <div key={i} className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-100 rounded-lg text-xs">
+                        <span className="font-semibold text-amber-800">{l.test}</span>
+                        <span className={cn('px-2 py-0.5 rounded-full font-medium',
+                          l.priority === 'stat' ? 'bg-red-100 text-red-700' :
+                          l.priority === 'urgent' ? 'bg-orange-100 text-orange-700' :
+                          'bg-amber-100 text-amber-700'
+                        )}>
+                          {l.priority}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Agent summary (collapsed) */}
+              {result.summary && (
+                <details className="group">
+                  <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-700 font-medium select-none flex items-center gap-1">
+                    <ChevronDown className="w-3.5 h-3.5 group-open:rotate-180 transition-transform" />
+                    Agent reasoning
+                  </summary>
+                  <p className="mt-2 text-xs text-slate-600 leading-relaxed pl-4 border-l-2 border-slate-200">{result.summary}</p>
+                </details>
+              )}
+
+              {/* Footer actions */}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+                >
+                  Close
+                </button>
+                <a
+                  href="/workflow"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl hover:from-violet-700 hover:to-indigo-700 transition-all shadow-sm"
+                >
+                  View in Workflow <ArrowRight className="w-4 h-4" />
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
       </motion.div>
     </motion.div>
   );

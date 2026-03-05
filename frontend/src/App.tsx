@@ -57,7 +57,11 @@ export default function App() {
               <ClinicalDocsPage />
             </ProtectedRoute>
           } />
-          <Route path="/translator" element={<TranslatorPage />} />
+          <Route path="/translator" element={
+            <ProtectedRoute allowedRoles={['patient']}>
+              <TranslatorPage />
+            </ProtectedRoute>
+          } />
           <Route path="/my-reports" element={
             <ProtectedRoute allowedRoles={['patient']}>
               <MyReportsPage />

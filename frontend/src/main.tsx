@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { GoogleOAuthProvider } from '@react-oauth/google'
 import { AuthProvider } from './contexts/AuthContext'
+import { PatientProvider } from './contexts/PatientContext'
 import { initCapacitor } from './lib/capacitor'
 import './index.css'
 import App from './App.tsx'
@@ -19,6 +20,7 @@ createRoot(document.getElementById('root')!).render(
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <BrowserRouter>
         <AuthProvider>
+          <PatientProvider>
           <App />
           <Toaster
             position="top-right"
@@ -27,6 +29,7 @@ createRoot(document.getElementById('root')!).render(
               style: { background: '#1e293b', color: '#f8fafc', fontSize: '14px', borderRadius: '10px' },
             }}
           />
+          </PatientProvider>
         </AuthProvider>
       </BrowserRouter>
     </GoogleOAuthProvider>

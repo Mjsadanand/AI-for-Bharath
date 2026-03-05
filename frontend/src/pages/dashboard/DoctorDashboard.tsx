@@ -17,6 +17,8 @@ import {
   Sparkles,
   Languages,
   BookOpen,
+  GitBranch,
+  ArrowRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { DashboardData, Patient, User } from '../../types';
@@ -75,13 +77,22 @@ export default function DoctorDashboard() {
           title={`Good ${getGreeting()}, Dr. ${user?.name?.split(' ').pop() || ''}`}
           description={`Here's your overview for ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`}
           actions={
-            <Link
-              to="/clinical-docs"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-semibold hover:from-primary-700 hover:to-primary-800 transition-all shadow-sm shadow-primary-500/20"
-            >
-              <FileText className="w-4 h-4" />
-              New Clinical Note
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                to="/patients"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl text-sm font-semibold hover:from-primary-700 hover:to-primary-800 transition-all shadow-sm shadow-primary-500/20"
+              >
+                <Users className="w-4 h-4" />
+                Select Patient
+              </Link>
+              <Link
+                to="/pipeline"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all shadow-sm shadow-blue-500/20"
+              >
+                <GitBranch className="w-4 h-4" />
+                Pipeline
+              </Link>
+            </div>
           }
         />
       </motion.div>
@@ -240,7 +251,14 @@ export default function DoctorDashboard() {
                       {patient.chronicConditions?.slice(0, 2).join(', ') || 'No conditions recorded'}
                     </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-300" />
+                  <Link
+                    to={`/pipeline?patient=${patient._id}`}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+                  >
+                    <GitBranch className="w-3 h-3" />
+                    Pipeline
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
                 </div>
               ))}
             </div>
