@@ -3,6 +3,7 @@ import {
   createAppointment, getAppointments, updateAppointment,
   createClaim, getClaims, updateClaim,
   createLabResult, getLabResults, updateLabResult,
+  autoGenerateWorkflow,
 } from '../controllers/workflowController.js';
 import { protect, authorize, requireCompleteProfile } from '../middleware/auth.js';
 import { validateObjectIdParam } from '../middleware/security.js';
@@ -27,5 +28,8 @@ router.put('/claims/:id', authorize('doctor', 'admin'), validateObjectIdParam(),
 router.post('/labs', authorize('doctor', 'admin'), createLabResult);
 router.get('/labs', getLabResults);
 router.put('/labs/:id', authorize('doctor', 'admin'), validateObjectIdParam(), updateLabResult);
+
+// AI Workflow Agent — auto-generates appointments, claims & lab orders from a clinical note
+router.post('/auto-generate', authorize('doctor', 'admin'), autoGenerateWorkflow);
 
 export default router;

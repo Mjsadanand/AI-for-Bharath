@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   UserCheck,
   FileText,
-  Languages,
   Brain,
   ClipboardList,
   BookOpen,
@@ -22,6 +22,7 @@ import api from '../../lib/api';
 import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { PageHeader, Badge, Skeleton } from '../../components/ui/Cards';
+import { usePatient } from '../../contexts/PatientContext';
 
 const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const fadeUp = { hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
@@ -52,11 +53,10 @@ interface PipelineResult {
   riskAssessmentId: string;
 }
 
-const stepIcons = [UserCheck, FileText, Languages, Brain, ClipboardList, BookOpen];
+const stepIcons = [UserCheck, FileText, Brain, ClipboardList, BookOpen];
 const stepGradients = [
   { from: 'from-blue-500', to: 'to-cyan-400', bg: 'from-blue-50 to-cyan-50', border: 'border-blue-200', text: 'text-blue-700', ring: 'ring-blue-400/20' },
   { from: 'from-indigo-500', to: 'to-violet-400', bg: 'from-indigo-50 to-violet-50', border: 'border-indigo-200', text: 'text-indigo-700', ring: 'ring-indigo-400/20' },
-  { from: 'from-teal-500', to: 'to-emerald-400', bg: 'from-teal-50 to-emerald-50', border: 'border-teal-200', text: 'text-teal-700', ring: 'ring-teal-400/20' },
   { from: 'from-amber-500', to: 'to-orange-400', bg: 'from-amber-50 to-orange-50', border: 'border-amber-200', text: 'text-amber-700', ring: 'ring-amber-400/20' },
   { from: 'from-purple-500', to: 'to-fuchsia-400', bg: 'from-purple-50 to-fuchsia-50', border: 'border-purple-200', text: 'text-purple-700', ring: 'ring-purple-400/20' },
   { from: 'from-emerald-500', to: 'to-green-400', bg: 'from-emerald-50 to-green-50', border: 'border-emerald-200', text: 'text-emerald-700', ring: 'ring-emerald-400/20' },
@@ -65,7 +65,6 @@ const stepGradients = [
 const stepNames = [
   'Doctor ↔ Patient',
   'Clinical Docs AI',
-  'Patient Translator',
   'Predictive Engine',
   'Workflow Auto',
   'Research Synth',
@@ -73,15 +72,17 @@ const stepNames = [
 const stepDescriptions = [
   'Retrieve patient data, medical history, and current vitals',
   'Generate structured clinical documentation with AI-powered entity extraction',
-  'Translate medical terminology into patient-friendly language',
   'Analyze health risks, generate predictions, and create alerts',
   'Automate scheduling, follow-ups, and clinical workflow tasks',
   'Find relevant medical research based on patient conditions',
 ];
 
 export default function PipelinePage() {
+  const [searchParams] = useSearchParams();
+  const { selectedPatient: ctxPatient } = usePatient();
+  const preselectedPatient = searchParams.get('patient') || ctxPatient?._id || '';
   const [patients, setPatients] = useState<PatientOption[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState('');
+  const [selectedPatient, setSelectedPatient] = useState(preselectedPatient);
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [hpiText, setHpiText] = useState('');
   const [assessment, setAssessment] = useState('');
@@ -97,6 +98,14 @@ export default function PipelinePage() {
   useEffect(() => {
     loadPatients();
   }, []);
+
+  // Auto-select patient when coming from Patients page
+  useEffect(() => {
+    if (preselectedPatient && patients.length > 0) {
+      setSelectedPatient(preselectedPatient);
+      loadPipelineStatus(preselectedPatient);
+    }
+  }, [preselectedPatient, patients]);
 
   const loadPatients = async () => {
     try {
@@ -136,7 +145,7 @@ export default function PipelinePage() {
     setResult(null);
     setExpandedStep(null);
 
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= 5; i++) {
       setCurrentStep(i);
       await new Promise((r) => setTimeout(r, 400));
     }
@@ -154,7 +163,7 @@ export default function PipelinePage() {
       });
 
       setResult(res.data.data);
-      setCurrentStep(7);
+      setCurrentStep(6);
       toast.success('Pipeline completed successfully!');
       loadPipelineStatus(selectedPatient);
     } catch (err: unknown) {
@@ -195,7 +204,7 @@ export default function PipelinePage() {
         <PageHeader
           icon={Zap}
           title="CARENET Pipeline"
-          description="Run the complete 6-step healthcare AI pipeline — from patient interaction to research synthesis"
+          description="Run the complete 5-step healthcare AI pipeline — from patient interaction to research synthesis"
           badge={<Badge variant="info" dot>AI Pipeline</Badge>}
         />
       </motion.div>
@@ -216,9 +225,9 @@ export default function PipelinePage() {
           )}
         </div>
 
-        {/* 6-Step Visual Pipeline */}
-        <div className="grid grid-cols-6 gap-2 mb-5">
-          {[1, 2, 3, 4, 5, 6].map((stepNum) => {
+        {/* 5-Step Visual Pipeline */}
+        <div className="grid grid-cols-5 gap-2 mb-5">
+          {[1, 2, 3, 4, 5].map((stepNum) => {
             const Icon = stepIcons[stepNum - 1];
             const g = stepGradients[stepNum - 1];
             const status = getStepStatus(stepNum);
@@ -265,7 +274,7 @@ export default function PipelinePage() {
                     {stepNames[stepNum - 1]}
                   </span>
                 </motion.button>
-                {stepNum < 6 && (
+                {stepNum < 5 && (
                   <ArrowRight
                     className={cn(
                       'w-4 h-4 mx-1 flex-shrink-0 transition-colors',
@@ -397,7 +406,7 @@ export default function PipelinePage() {
                   </button>
                 </div>
                 <div className="space-y-2.5">
-                  {[statusData.step2, statusData.step3, statusData.step4, statusData.step5, statusData.step6].map(
+                  {[statusData.step2, statusData.step3, statusData.step4, statusData.step5].map(
                     (step: unknown, i: number) => {
                       const s = step as { name: string; completed: boolean };
                       return (

@@ -103,7 +103,8 @@ export const getClinicalNotes = async (req: AuthRequest, res: Response): Promise
     const { patientId, status, noteType } = req.query;
 
     const query: any = {};
-    if (req.user?.role === 'doctor') query.providerId = req.user._id;
+    // Admins see all; doctors see all notes (clinical records are shared)
+    // Filter by patient if specified
     if (patientId && typeof patientId === 'string') query.patientId = patientId;
     if (status && typeof status === 'string') {
       const allowedStatuses = ['pending', 'verified', 'rejected', 'amended'];

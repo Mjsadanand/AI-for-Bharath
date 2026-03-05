@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import { Badge, EmptyState, Skeleton, PageHeader } from '../../components/ui/Cards';
 import {
@@ -17,7 +18,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import WorkflowNav from '../../components/ui/WorkflowNav';
+import PatientRequiredGuard from '../../components/ui/PatientRequiredGuard';
 import { cn } from '../../lib/utils';
+import { usePatient } from '../../contexts/PatientContext';
+import type { Patient, User } from '../../types';
 
 interface Appointment {
   _id: string;
@@ -73,8 +77,15 @@ export default function WorkflowPage() {
   const [showNewClaim, setShowNewClaim] = useState(false);
   const [showNewLab, setShowNewLab] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [searchParams] = useSearchParams();
+  const { selectedPatient: ctxPatient } = usePatient();
+  const activePatientId = searchParams.get('patient') || ctxPatient?._id || '';
 
-  useEffect(() => { fetchAppointments(); fetchClaims(); fetchLabs(); }, []);
+  useEffect(() => {
+    fetchAppointments(); fetchClaims(); fetchLabs();
+    api.get('/patients').then(({ data }) => setPatients(data.data || [])).catch(() => {});
+  }, []);
 
   const fetchAppointments = async () => {
     try { const { data } = await api.get('/workflow/appointments'); setAppointments(data.data || []); } catch { console.error('Failed to fetch appointments'); } finally { setLoading(false); }
@@ -118,6 +129,9 @@ export default function WorkflowPage() {
     { key: 'claims' as const, label: 'Insurance Claims', icon: Shield, count: claims.length },
     { key: 'labs' as const, label: 'Lab Results', icon: FlaskConical, count: labs.length },
   ];
+
+  /* ── Guard: block access until a patient is selected ── */
+  if (!ctxPatient) return <PatientRequiredGuard>{null}</PatientRequiredGuard>;
 
   if (loading) return (
     <div className="space-y-6">
@@ -324,21 +338,21 @@ export default function WorkflowPage() {
       {/* New Appointment Modal */}
       <AnimatePresence>
         {showNewAppointment && (
-          <NewAppointmentModal onClose={() => setShowNewAppointment(false)} onCreated={() => { setShowNewAppointment(false); fetchAppointments(); }} />
+          <NewAppointmentModal onClose={() => setShowNewAppointment(false)} onCreated={() => { setShowNewAppointment(false); fetchAppointments(); }} patients={patients} defaultPatientId={activePatientId} />
         )}
         {showNewClaim && (
-          <NewClaimModal onClose={() => setShowNewClaim(false)} onCreated={() => { setShowNewClaim(false); fetchClaims(); }} />
+          <NewClaimModal onClose={() => setShowNewClaim(false)} onCreated={() => { setShowNewClaim(false); fetchClaims(); }} patients={patients} defaultPatientId={activePatientId} />
         )}
         {showNewLab && (
-          <NewLabModal onClose={() => setShowNewLab(false)} onCreated={() => { setShowNewLab(false); fetchLabs(); }} />
+          <NewLabModal onClose={() => setShowNewLab(false)} onCreated={() => { setShowNewLab(false); fetchLabs(); }} patients={patients} defaultPatientId={activePatientId} />
         )}
       </AnimatePresence>
     </motion.div>
   );
 }
 
-function NewAppointmentModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ patientId: '', scheduledDate: '', duration: 30, type: 'consultation', reason: '', location: '' });
+function NewAppointmentModal({ onClose, onCreated, patients, defaultPatientId }: { onClose: () => void; onCreated: () => void; patients: Patient[]; defaultPatientId: string }) {
+  const [form, setForm] = useState({ patientId: defaultPatientId, scheduledDate: '', duration: 30, type: 'consultation', reason: '', location: '' });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -351,7 +365,7 @@ function NewAppointmentModal({ onClose, onCreated }: { onClose: () => void; onCr
   const inputClass = 'w-full px-4 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400 transition-all';
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-800">Schedule Appointment</h2>
@@ -359,8 +373,11 @@ function NewAppointmentModal({ onClose, onCreated }: { onClose: () => void; onCr
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient ID *</label>
-            <input type="text" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className={inputClass} placeholder="Enter patient ID" />
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient *</label>
+            <select value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className={inputClass}>
+              <option value="">Select a patient</option>
+              {patients.map((p) => { const u = typeof p.userId === 'object' ? (p.userId as User) : null; return <option key={p._id} value={p._id}>{u?.name || 'Unknown'} {p.patientCode ? `(${p.patientCode})` : ''}</option>; })}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -406,8 +423,8 @@ function NewAppointmentModal({ onClose, onCreated }: { onClose: () => void; onCr
 }
 
 /* ── New Insurance Claim Modal ── */
-function NewClaimModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ patientId: '', insuranceProvider: '', policyNumber: '', totalAmount: '', diagnosisCodes: '', procedureCodes: '' });
+function NewClaimModal({ onClose, onCreated, patients, defaultPatientId }: { onClose: () => void; onCreated: () => void; patients: Patient[]; defaultPatientId: string }) {
+  const [form, setForm] = useState({ patientId: defaultPatientId, insuranceProvider: '', policyNumber: '', totalAmount: '', diagnosisCodes: '', procedureCodes: '' });
   const [submitting, setSubmitting] = useState(false);
   const inputClass = 'w-full px-4 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400 transition-all';
 
@@ -431,7 +448,7 @@ function NewClaimModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-800">New Insurance Claim</h2>
@@ -439,8 +456,11 @@ function NewClaimModal({ onClose, onCreated }: { onClose: () => void; onCreated:
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient ID *</label>
-            <input type="text" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className={inputClass} placeholder="Enter patient ID" />
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient *</label>
+            <select value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className={inputClass}>
+              <option value="">Select a patient</option>
+              {patients.map((p) => { const u = typeof p.userId === 'object' ? (p.userId as User) : null; return <option key={p._id} value={p._id}>{u?.name || 'Unknown'} {p.patientCode ? `(${p.patientCode})` : ''}</option>; })}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -475,8 +495,8 @@ function NewClaimModal({ onClose, onCreated }: { onClose: () => void; onCreated:
 }
 
 /* ── New Lab Order Modal ── */
-function NewLabModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ patientId: '', testName: '', category: 'hematology', notes: '' });
+function NewLabModal({ onClose, onCreated, patients, defaultPatientId }: { onClose: () => void; onCreated: () => void; patients: Patient[]; defaultPatientId: string }) {
+  const [form, setForm] = useState({ patientId: defaultPatientId, testName: '', category: 'hematology', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const inputClass = 'w-full px-4 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-400 transition-all';
 
@@ -493,7 +513,7 @@ function NewLabModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-800">New Lab Order</h2>
@@ -501,8 +521,11 @@ function NewLabModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient ID *</label>
-            <input type="text" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className={inputClass} placeholder="Enter patient ID" />
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Patient *</label>
+            <select value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} className={inputClass}>
+              <option value="">Select a patient</option>
+              {patients.map((p) => { const u = typeof p.userId === 'object' ? (p.userId as User) : null; return <option key={p._id} value={p._id}>{u?.name || 'Unknown'} {p.patientCode ? `(${p.patientCode})` : ''}</option>; })}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Test Name *</label>

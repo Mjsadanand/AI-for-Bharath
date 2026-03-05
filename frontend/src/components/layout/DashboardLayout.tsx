@@ -24,36 +24,40 @@ import {
   Shield,
   Sparkles,
   ChevronRight,
+  Home,
+  BarChart3,
 } from 'lucide-react';
 
-/* ── Role-based navigation ── */
-const roleNavItems: Record<string, Array<{ to: string; icon: React.ElementType; label: string; badge?: string }>> = {
+/* ── Nav item type ── */
+interface NavItem {
+  to: string;
+  icon: React.ElementType;
+  label: string;
+  mobileLabel?: string;
+  badge?: string;
+}
+
+/* ── Role-based navigation (desktop sidebar) ── */
+const roleNavItems: Record<string, NavItem[]> = {
   doctor: [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/patients', icon: Users, label: 'Patients' },
-    { to: '/clinical-docs', icon: FileText, label: 'Clinical Docs', badge: 'AI' },
-    { to: '/translator', icon: Languages, label: 'Patient Translator', badge: 'AI' },
-    { to: '/predictive', icon: Brain, label: 'Predictive Engine', badge: 'AI' },
-    { to: '/research', icon: BookOpen, label: 'Research', badge: 'AI' },
-    { to: '/workflow', icon: ClipboardList, label: 'Workflow', badge: 'AI' },
-    { to: '/agents', icon: Sparkles, label: 'AI Agents', badge: 'AI' },
-    { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', mobileLabel: 'Home' },
+    { to: '/patients', icon: Users, label: 'Patients', mobileLabel: 'Patients' },
+    { to: '/pipeline', icon: GitBranch, label: 'Pipeline', mobileLabel: 'Pipeline' },
   ],
   patient: [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/my-reports', icon: FileText, label: 'My Reports', badge: 'AI' },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', mobileLabel: 'Home' },
+    { to: '/my-reports', icon: FileText, label: 'My Reports', mobileLabel: 'Reports', badge: 'AI' },
   ],
   researcher: [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/research', icon: BookOpen, label: 'Research', badge: 'AI' },
-    { to: '/predictive', icon: Brain, label: 'Analytics', badge: 'AI' },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', mobileLabel: 'Home' },
+    { to: '/research', icon: BookOpen, label: 'Research', mobileLabel: 'Research', badge: 'AI' },
+    { to: '/predictive', icon: BarChart3, label: 'Analytics', mobileLabel: 'Analytics', badge: 'AI' },
   ],
   admin: [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/patients', icon: Users, label: 'Users' },
-    { to: '/workflow', icon: ClipboardList, label: 'Workflow' },
-    { to: '/agents', icon: Sparkles, label: 'AI Agents', badge: 'AI' },
-    { to: '/pipeline', icon: GitBranch, label: 'Pipeline' },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', mobileLabel: 'Home' },
+    { to: '/patients', icon: Users, label: 'Users', mobileLabel: 'Users' },
+    { to: '/workflow', icon: ClipboardList, label: 'Workflow', mobileLabel: 'Workflow' },
+    { to: '/pipeline', icon: GitBranch, label: 'Pipeline', mobileLabel: 'Pipeline' },
   ],
 };
 
@@ -87,14 +91,13 @@ export default function DashboardLayout() {
       </AnimatePresence>
 
       {/* ══════════════════════════════════════════════
-          SIDEBAR
+          SIDEBAR (Desktop only — hidden on mobile)
          ══════════════════════════════════════════════ */}
       <aside
         className={cn(
           'fixed lg:static inset-y-0 left-0 z-50 w-[260px] bg-gradient-to-b from-[#0c1222] to-[#0f172a]',
-          'text-white transform transition-transform duration-300 ease-in-out flex flex-col',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-          'lg:translate-x-0'
+          'text-white transform transition-transform duration-300 ease-in-out flex-col',
+          'hidden lg:flex'
         )}
       >
         {/* Logo */}
@@ -106,12 +109,6 @@ export default function DashboardLayout() {
             <h1 className="text-[15px] font-bold tracking-tight">CARENET AI</h1>
             <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em]">Healthcare Platform</p>
           </div>
-          <button
-            className="lg:hidden text-slate-500 hover:text-white transition-colors"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Navigation */}
@@ -123,7 +120,6 @@ export default function DashboardLayout() {
             <NavLink
               key={item.to}
               to={item.to}
-              onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 cn(
                   'group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200',
@@ -190,15 +186,16 @@ export default function DashboardLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-4 lg:px-6 py-3 flex items-center gap-3 sticky top-0 z-30">
-          <button
-            className="lg:hidden p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          {/* Mobile: Logo instead of hamburger */}
+          <div className="lg:hidden flex items-center gap-2">
+            <div className="w-7 h-7 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-sm">
+              <Heart className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-sm font-bold text-slate-800 tracking-tight">CARENET</span>
+          </div>
 
-          {/* Breadcrumb */}
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
+          {/* Breadcrumb (desktop) */}
+          <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-400">
             <span>CARENET</span>
             <ChevronRight className="w-3 h-3" />
             <span className="text-slate-600 font-medium capitalize">
@@ -243,7 +240,7 @@ export default function DashboardLayout() {
                 <p className="text-[11px] text-slate-400 capitalize">{user?.role}</p>
               </div>
               <ChevronDown className={cn(
-                'w-4 h-4 text-slate-400 transition-transform duration-200',
+                'w-4 h-4 text-slate-400 transition-transform duration-200 hidden sm:block',
                 profileOpen && 'rotate-180'
               )} />
             </button>
@@ -286,8 +283,8 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        {/* Page content — extra bottom padding on mobile for bottom nav */}
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-24 lg:pb-6">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0, y: 6 }}
@@ -298,6 +295,65 @@ export default function DashboardLayout() {
           </motion.div>
         </main>
       </div>
+
+      {/* ══════════════════════════════════════════════
+          MOBILE BOTTOM NAVIGATION BAR (Instagram-style)
+         ══════════════════════════════════════════════ */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
+        {/* Frosted glass background */}
+        <div className="bg-white/90 backdrop-blur-xl border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+          {/* Safe area padding for notched phones */}
+          <div className="flex items-center justify-around px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.to;
+              const Icon = item.icon;
+
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className="flex flex-col items-center justify-center min-w-[64px] py-1 relative group"
+                >
+                  {/* Active indicator pill */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="bottomNavIndicator"
+                      className="absolute -top-2 w-8 h-1 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                    />
+                  )}
+
+                  {/* Icon container */}
+                  <div className={cn(
+                    'flex items-center justify-center w-10 h-10 rounded-2xl transition-all duration-200',
+                    isActive
+                      ? 'bg-primary-50 scale-110'
+                      : 'group-active:scale-90'
+                  )}>
+                    <Icon className={cn(
+                      'w-[22px] h-[22px] transition-colors duration-200',
+                      isActive ? 'text-primary-600' : 'text-slate-400'
+                    )} />
+                  </div>
+
+                  {/* Label */}
+                  <span className={cn(
+                    'text-[10px] font-semibold mt-0.5 transition-colors duration-200',
+                    isActive ? 'text-primary-600' : 'text-slate-400'
+                  )}>
+                    {item.mobileLabel || item.label}
+                  </span>
+
+                  {/* AI badge dot */}
+                  {item.badge && (
+                    <span className="absolute top-0.5 right-2 w-2 h-2 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full ring-2 ring-white" />
+                  )}
+                </NavLink>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
     </div>
   );
 }

@@ -23,12 +23,15 @@ import {
 import toast from 'react-hot-toast';
 import type { ResearchPaper } from '../../types';
 import WorkflowNav from '../../components/ui/WorkflowNav';
+import PatientRequiredGuard from '../../components/ui/PatientRequiredGuard';
 import { cn } from '../../lib/utils';
+import { usePatient } from '../../contexts/PatientContext';
 
 const stagger = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
 
 export default function ResearchPage() {
+  const { selectedPatient: ctxPatient } = usePatient();
   const [papers, setPapers] = useState<ResearchPaper[]>([]);
   const [trends, setTrends] = useState<Array<{ _id: string; keyword?: string; count: number; avgImpactFactor?: number }>>([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +94,9 @@ export default function ResearchPage() {
   };
 
   const categories = ['cardiology', 'neurology', 'oncology', 'immunology', 'genetics', 'public_health'];
+
+  /* ── Guard: block access until a patient is selected ── */
+  if (!ctxPatient) return <PatientRequiredGuard>{null}</PatientRequiredGuard>;
 
   if (loading && papers.length === 0) return (
     <div className="space-y-6">
@@ -278,7 +284,7 @@ export default function ResearchPage() {
       {/* Paper Detail Modal */}
       <AnimatePresence>
         {(detailPaper || loadingDetail) && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => { setDetailPaper(null); setLoadingDetail(false); }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => { setDetailPaper(null); setLoadingDetail(false); }}>
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               {loadingDetail && !detailPaper ? (
                 <div className="p-10 flex items-center justify-center"><div className="w-8 h-8 border-3 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>
