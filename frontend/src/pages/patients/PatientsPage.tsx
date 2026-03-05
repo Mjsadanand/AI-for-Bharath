@@ -62,7 +62,7 @@ function getAvatarGradient(name: string) {
 }
 
 export default function PatientsPage() {
-  const { selectPatient: setGlobalPatient, selectedPatient: ctxPatient } = usePatient();
+  const { selectPatient: setGlobalPatient } = usePatient();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

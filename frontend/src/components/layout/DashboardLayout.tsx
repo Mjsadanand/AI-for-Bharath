@@ -6,12 +6,8 @@ import { cn, getInitials } from '../../lib/utils';
 import {
   LayoutDashboard,
   FileText,
-  Languages,
-  Brain,
   BookOpen,
   LogOut,
-  Menu,
-  X,
   Heart,
   ChevronDown,
   Bell,
@@ -24,7 +20,6 @@ import {
   Shield,
   Sparkles,
   ChevronRight,
-  Home,
   BarChart3,
 } from 'lucide-react';
 
