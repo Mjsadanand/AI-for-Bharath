@@ -12,9 +12,9 @@ const RECOMMENDED_VARS = [
   'AWS_REGION',
   'AWS_ACCESS_KEY_ID',
   'AWS_SECRET_ACCESS_KEY',
+  'AWS_S3_BUCKET_NAME',    // Required for Amazon Transcribe Medical audio uploads
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
-  'GROQ_API_KEY',
 ] as const;
 
 export function validateEnvironment(): void {

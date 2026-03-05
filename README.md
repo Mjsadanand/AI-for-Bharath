@@ -1,11 +1,19 @@
 <p align="center">
   <img src="https://img.shields.io/badge/CARENET-AI-0ea5e9?style=for-the-badge&logo=heart&logoColor=white" alt="CARENET AI" />
+  <img src="https://img.shields.io/badge/AWS-Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" alt="Amazon Bedrock" />
+  <img src="https://img.shields.io/badge/Amazon%20Transcribe-Medical-8A2BE2?style=for-the-badge&logo=amazonaws&logoColor=white" alt="Amazon Transcribe Medical" />
+  <img src="https://img.shields.io/badge/Amazon%20S3-Storage-569A31?style=for-the-badge&logo=amazons3&logoColor=white" alt="Amazon S3" />
 </p>
 
 <h1 align="center">CARENET AI — Intelligent Healthcare Assistant Platform</h1>
 
 <p align="center">
   A comprehensive, AI-powered healthcare management system delivering clinical documentation, predictive analytics, medical translation, research synthesis, and workflow automation — all within a unified, role-based platform.
+</p>
+
+<p align="center">
+  <strong>Built entirely on AWS Generative AI</strong> — Amazon Bedrock (Nova Premier) powers five specialized ReAct agents;
+  Amazon Transcribe Medical handles clinical-grade speech-to-text; Amazon S3 secures all audio assets.
 </p>
 
 <p align="center">
@@ -52,7 +60,107 @@
 
 ## Overview
 
-**CARENET AI** is a full-stack healthcare assistant platform designed to streamline clinical workflows, enhance patient care, and support medical research through intelligent automation. The system serves four distinct user roles — **Doctors**, **Patients**, **Researchers**, and **Administrators** — each with a tailored dashboard and feature set.
+**CARENET AI** is a full-stack healthcare assistant platform designed to streamline clinical workflows, enhance patient care, and support medical research through intelligent automation.
+
+> **Hackathon Track — Using Generative AI on AWS**  
+> This project leverages Amazon Bedrock, Amazon Transcribe Medical, and Amazon S3 as its core AI and infrastructure services. Every AI capability in the platform runs through AWS — there are no third-party AI providers.
+
+---
+
+## Why AI is Required
+
+Healthcare documentation, risk assessment, and patient communication are complex, high-stakes tasks where rule-based automation alone falls short:
+
+| Challenge | Why Rule-Based Fails | How Generative AI Solves It |
+|-----------|---------------------|-----------------------------|
+| **Clinical note generation** | Free-form transcripts have infinite variation in phrasing, structure, and medical vocabulary | Amazon Bedrock agents parse any natural-language transcript and produce structured SOAP notes with ICD-coded diagnoses |
+| **Medical entity extraction** | Medical terminology changes constantly; regex/dictionaries miss context | LLM tool-use extracts symptoms, medications, procedures with confidence scoring |
+| **Patient-friendly translation** | A static 30-term dictionary cannot explain a complex multi-diagnosis report | Bedrock generates context-aware explanations tailored to individual patient reports |
+| **Predictive risk scoring** | Scoring rules become outdated; cannot reason over narrative clinical context | Bedrock synthesizes vitals, medications, chronic conditions, and recent notes to produce holistic risk assessments with evidence citations |
+| **Research synthesis** | Keyword search returns papers; it cannot compare evidence or identify contradictions | Bedrock agents surface common findings, conflicts, and trends across multiple papers |
+| **Clinical audio transcription** | Generic ASR misses medical vocabulary (drug names, procedures, ICD codes) | Amazon Transcribe Medical ships with a 100,000+ term clinical vocabulary purpose-built for doctor-patient conversations |
+
+**The system literally cannot function without AI** — there is no manual substitute for real-time clinical note generation from speech, or for synthesising evidence across 50 research papers in seconds.
+
+---
+
+## AWS Services Architecture
+
+### Generative AI Layer — Amazon Bedrock
+
+| Agent | Purpose | Model | Tool-Use Pattern |
+|-------|---------|-------|------------------|
+| **ClinicalDocAgent** | Transcript → structured SOAP note with ICD codes | `us.amazon.nova-premier-v1:0` | `get_patient_record` + `create_clinical_note` |
+| **TranslatorAgent** | Clinical note → patient-friendly language | `us.amazon.nova-premier-v1:0` | `get_clinical_note` + `format_simplified_report` |
+| **PredictiveAgent** | Patient data → multi-category risk assessment | `us.amazon.nova-premier-v1:0` | `get_patient_health_data` + `create_risk_assessment` |
+| **ResearchAgent** | Query → evidence synthesis across papers | `us.amazon.nova-premier-v1:0` | `search_papers` + `compare_evidence` |
+| **WorkflowAgent** | Clinical output → appointments / claims / labs | `us.amazon.nova-premier-v1:0` | `create_appointment` + `create_insurance_claim` |
+
+All agents share a **ReAct-style agentic loop** implemented in [`BedrockAgent.ts`](backend/agents/core/BedrockAgent.ts) using the Bedrock **Converse API** with native tool-use. The [`Orchestrator`](backend/agents/core/Orchestrator.ts) chains all five agents sequentially, passing state between steps.
+
+**Bedrock implementation details:**
+- SDK: `@aws-sdk/client-bedrock-runtime` v3
+- API: `ConverseCommand` with tool configuration
+- Retry logic: exponential backoff on `ThrottlingException`, `ServiceUnavailableException`, `InternalServerException`
+- Per-call timeout: 90 seconds; max iterations per agent: 8
+- Model: Amazon Nova Premier — chosen for its best-in-class reasoning on clinical narratives
+
+### Speech Intelligence — Amazon Transcribe Medical
+
+The clinical documentation workflow uses **Amazon Transcribe Medical** for audio → text conversion:
+
+```
+Doctor records consultation
+         │
+         ▼
+  POST /api/clinical-docs/transcribe
+         │
+         ▼  Step 1
+  ┌─────────────────────────────────────────┐
+  │  Amazon S3  (carenet-audio/<job>.webm)  │  ← AES-256 server-side encrypted
+  └────────────────────┬────────────────────┘
+                       │  Step 2
+                       ▼
+  ┌─────────────────────────────────────────┐
+  │  Amazon Transcribe Medical              │
+  │  • Specialty: PRIMARYCARE               │
+  │  • Type: CONVERSATION                   │
+  │  • 100k+ clinical vocabulary terms      │
+  └────────────────────┬────────────────────┘
+                       │  Step 3  (polls until COMPLETED)
+                       ▼
+  ┌─────────────────────────────────────────┐
+  │  S3 transcript output JSON              │  ← Fetched + parsed by backend
+  └────────────────────┬────────────────────┘
+                       │  Step 4
+                       ▼
+  Transcript text returned to frontend
+  → Feeds into ClinicalDocAgent pipeline
+```
+
+**Why Amazon Transcribe Medical over generic ASR:**  
+Generic models do not reliably recognise drug names (e.g. *lisinopril*, *metformin*), clinical abbreviations (*PRN*, *b.i.d.*), or ICD-coded conditions. Transcribe Medical's purpose-built vocabulary eliminates transcription errors that would corrupt downstream AI-generated notes.
+
+### Storage — Amazon S3
+
+| Path prefix | Content | Lifecycle |
+|-------------|---------|----------|
+| `carenet-audio/<job>.*` | Temporary audio upload before Transcribe job | Deleted after job completes |
+| `carenet-transcripts/<job>.json` | Transcribe Medical output JSON | Retained for audit |
+
+All objects are server-side encrypted (`AES256`). IAM policy grants minimum required permissions (`s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`) scoped to the `AWS_S3_BUCKET_NAME` bucket.
+
+### What Value the AI Layer Adds
+
+| Without AI | With AI (CARENET) |
+|------------|-------------------|
+| Doctor spends 15-20 min writing notes after each consultation | Structured SOAP note generated from a spoken transcript in < 30 seconds |
+| Patients receive jargon-filled discharge papers they cannot understand | Personalised plain-language summary with medication guides generated instantly |
+| Cardiovascular risk detected only at next annual check-up | Continuous automated risk scoring triggers alerts the moment vitals or conditions change |
+| Researching evidence for a treatment takes hours across multiple papers | Evidence synthesis across all stored research papers in one query |
+| Insurance claim coding requires manual CPT/ICD lookup | Workflow agent auto-populates ICD codes from the clinical note |
+
+--- The system serves four distinct user roles — **Doctors**, **Patients**, **Researchers**, and **Administrators** — each with a tailored dashboard and feature set.
 
 The platform integrates AI-driven capabilities including natural language processing for clinical documentation, predictive risk scoring, medical terminology translation for patient comprehension, and evidence-based research synthesis.
 
@@ -100,15 +208,17 @@ The platform integrates AI-driven capabilities including natural language proces
 
 ## Tech Stack
 
-| Layer          | Technology                                                                              |
-|----------------|----------------------------------------------------------------------------------------|
-| **Frontend**   | React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4, React Router 7, Recharts, Lucide React |
-| **Backend**    | Node.js, Express 5, TypeScript 5.9, Mongoose 9                                        |
-| **Database**   | MongoDB                                                                                 |
-| **Auth**       | JSON Web Tokens (JWT), bcryptjs                                                         |
-| **HTTP Client**| Axios with interceptors                                                                 |
-| **UI/UX**      | Headless UI, React Hot Toast, Google Fonts (Inter)                                     |
-| **Dev Tools**  | ESLint, tsx (watch mode), Vite dev server with API proxy, React Compiler               |
+| Layer          | Technology                                                                                  |
+|----------------|---------------------------------------------------------------------------------------------|
+| **AWS AI/ML**  | Amazon Bedrock (Nova Premier), Amazon Transcribe Medical, Amazon S3                         |
+| **Frontend**   | React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4, React Router 7, Recharts, Lucide React   |
+| **Backend**    | Node.js, Express 5, TypeScript 5.9, Mongoose 9                                              |
+| **AWS SDK**    | `@aws-sdk/client-bedrock-runtime`, `@aws-sdk/client-transcribe`, `@aws-sdk/client-s3`       |
+| **Database**   | MongoDB (Mongoose 9)                                                                        |
+| **Auth**       | JSON Web Tokens (JWT), bcryptjs, Google OAuth 2.0                                           |
+| **HTTP Client**| Axios with interceptors                                                                     |
+| **UI/UX**      | Headless UI, React Hot Toast, Google Fonts (Inter)                                          |
+| **Dev Tools**  | ESLint, tsx (watch mode), Vite dev server with API proxy, React Compiler                    |
 
 ---
 
@@ -186,10 +296,62 @@ NODE_ENV=development
 MONGO_URI=mongodb://localhost:27017/carenet
 
 # Authentication
-JWT_SECRET=your-secure-jwt-secret-key
+JWT_SECRET=your-secure-jwt-secret-key-min-32-chars
 
 # Frontend URL (for CORS)
 CLIENT_URL=http://localhost:5173
+
+# ─── Amazon Web Services ───────────────────────────────────────────────────────
+# All AI features run through AWS — credentials must have permissions for:
+#   bedrock:InvokeModel   (Amazon Bedrock — all 5 agents)
+#   s3:PutObject / GetObject / DeleteObject   (Amazon S3 — audio uploads)
+#   transcribe:StartMedicalTranscriptionJob / GetMedicalTranscriptionJob
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+
+# Amazon S3 bucket for clinical audio uploads + Transcribe Medical output
+# Create bucket with default AES-256 encryption and Block Public Access enabled
+AWS_S3_BUCKET_NAME=carenet-clinical-audio
+
+# Google OAuth (optional — enables Google Sign-In)
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+**IAM Policy (minimum required permissions):**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "arn:aws:bedrock:us-east-1::foundation-model/us.amazon.nova-premier-v1:0"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::carenet-clinical-audio/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "transcribe:StartMedicalTranscriptionJob",
+        "transcribe:GetMedicalTranscriptionJob"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
 ```
 
 ### Running the Application
@@ -503,6 +665,94 @@ The application uses **9 Mongoose models** to structure healthcare data:
 | `npm run build`  | `tsc -b && vite build` | Type-check and build for production     |
 | `npm run lint`   | `eslint .`             | Run ESLint across the codebase          |
 | `npm run preview`| `vite preview`         | Preview production build locally        |
+
+---
+
+---
+
+## AWS Infrastructure Deployment
+
+The recommended production deployment targets **Amazon ECS on Fargate** (serverless containers) fronted by **Amazon API Gateway**, with MongoDB Atlas or **Amazon DocumentDB** as the data store.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CARENET AI — AWS Architecture                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   Users / Doctors                                                           │
+│        │                                                                    │
+│        ▼                                                                    │
+│  ┌───────────────────┐                                                     │
+│  │ AWS Amplify / S3   │  ← Static frontend (React + Vite build)            │
+│  └──────────┬────────┘                                                     │
+│             │                                                               │
+│             ▼                                                               │
+│  ┌───────────────────┐                                                     │
+│  │ Amazon API Gateway │  ← Rate limiting, auth, CORS, request routing       │
+│  └──────────┬────────┘                                                     │
+│             │                                                               │
+│             ▼                                                               │
+│  ┌───────────────────┐                                                     │
+│  │ Amazon ECS Fargate │  ← Express backend (containerised, auto-scaling)   │
+│  └───┬─────────┬──────┘                                                     │
+│       │         │                                                          │
+│       ▼         ▼                                                          │
+│  ┌─────────┐ ┌─────────────────────────────────────────────┐          │
+│  │ MongoDB  │ │          AWS Managed Services                    │          │
+│  │ (Atlas)  │ │  ═════════════════════════════════════════  │          │
+│  └─────────┘ │  ║ Amazon Bedrock (Nova Premier)            ║  │          │
+│            │  ║   5 ReAct agents (clinical, translator,      ║  │          │
+│            │  ║   predictive, research, workflow)            ║  │          │
+│            │  ═════════════════════════════════════════  │          │
+│            │  ═════════════════════════════════════════  │          │
+│            │  ║ Amazon Transcribe Medical                ║  │          │
+│            │  ║   PRIMARYCARE / CONVERSATION specialty      ║  │          │
+│            │  ═════════════════════════════════════════  │          │
+│            │  ═════════════════════════════════════════  │          │
+│            │  ║ Amazon S3                                 ║  │          │
+│            │  ║   Audio uploads + transcript output         ║  │          │
+│            │  ═════════════════════════════════════════  │          │
+│            └─────────────────────────────────────────────┘          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Quick Deploy to AWS ECS
+
+```bash
+# 1. Build and push backend container to Amazon ECR
+aws ecr create-repository --repository-name carenet-backend
+docker build -t carenet-backend ./backend
+docker tag carenet-backend:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/carenet-backend:latest
+aws ecr get-login-password | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
+docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/carenet-backend:latest
+
+# 2. Create ECS cluster and service
+aws ecs create-cluster --cluster-name carenet-cluster
+# (Create task definition referencing the ECR image with env vars from Secrets Manager)
+# (Create Fargate service attached to an ALB)
+
+# 3. Deploy frontend to AWS Amplify
+aws amplify create-app --name carenet-frontend
+# (Connect to Git repo — Amplify auto-builds and deploys on push)
+
+# 4. Create S3 bucket for clinical audio
+aws s3api create-bucket --bucket carenet-clinical-audio --region us-east-1
+aws s3api put-bucket-encryption --bucket carenet-clinical-audio --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+aws s3api put-public-access-block --bucket carenet-clinical-audio --public-access-block-configuration 'BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true'
+```
+
+### AWS Service Summary
+
+| AWS Service | Role in CARENET | SDK Package |
+|-------------|-----------------|-------------|
+| **Amazon Bedrock** | 5 ReAct AI agents — clinical docs, translation, risk scoring, research synthesis, workflow | `@aws-sdk/client-bedrock-runtime` |
+| **Amazon Transcribe Medical** | Clinical-vocabulary speech-to-text for doctor consultation recordings | `@aws-sdk/client-transcribe` |
+| **Amazon S3** | Encrypted storage of audio uploads and transcript output | `@aws-sdk/client-s3` |
+| **Amazon ECS (Fargate)** | Serverless container hosting for the Express backend | — |
+| **Amazon ECR** | Container registry for backend Docker image | — |
+| **AWS Amplify** | CI/CD + hosting for the React frontend | — |
+| **Amazon API Gateway** | API routing, rate limiting, and auth at the edge | — |
 
 ---
 

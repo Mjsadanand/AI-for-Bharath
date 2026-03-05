@@ -73,12 +73,12 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Check if a local-auth user exists with the same email
-    const existingLocalUser = await User.findOne({ email, authProvider: 'local' });
+    // Check if any user exists with the same email (local or google without a linked googleId)
+    const existingLocalUser = await User.findOne({ email });
     if (existingLocalUser) {
-      // Link Google account to existing local user
+      // Link Google account to existing user and sign them in
       existingLocalUser.googleId = googleId;
-      existingLocalUser.authProvider = 'google'; // Upgrade to google auth
+      existingLocalUser.authProvider = 'google';
       if (picture && !existingLocalUser.avatar) {
         existingLocalUser.avatar = picture;
       }
