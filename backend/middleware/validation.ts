@@ -122,7 +122,7 @@ export const createPatientSchema = z.object({
     name: z.string().min(1).max(100),
     phone: z.string().min(1).max(20),
     relation: z.string().min(1).max(50),
-  }),
+  }).optional(),
   insurance: z.object({
     provider: z.string().max(100).optional(),
     policyNumber: z.string().max(50).optional(),

@@ -60,9 +60,9 @@ const patientSchema = new Schema<IPatient>(
     allergies: [{ type: String }],
     chronicConditions: [{ type: String }],
     emergencyContact: {
-      name: { type: String, required: true },
-      phone: { type: String, required: true },
-      relation: { type: String, required: true },
+      name: { type: String },
+      phone: { type: String },
+      relation: { type: String },
     },
     insurance: {
       provider: String,

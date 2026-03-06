@@ -1164,7 +1164,18 @@ function CreatePatientModal({ onClose, onCreated }: { onClose: () => void; onCre
         message: data.message,
       });
     } catch (err: unknown) {
-      toast.error(isAxiosError(err) ? err.response?.data?.message || 'Failed to create patient' : 'Failed to create patient');
+      if (isAxiosError(err)) {
+        const data = err.response?.data;
+        if (data?.errors?.length) {
+          // Show the first specific field error so the doctor knows exactly what to fix
+          const first = data.errors[0];
+          toast.error(`${first.field ? first.field + ': ' : ''}${first.message}`);
+        } else {
+          toast.error(data?.message || 'Failed to create patient');
+        }
+      } else {
+        toast.error('Failed to create patient');
+      }
     } finally {
       setSubmitting(false);
     }
