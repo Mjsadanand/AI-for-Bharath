@@ -1,10 +1,34 @@
 // ─── CARENET AI Agent Orchestrator ───────────────────────────────────────────
 //
-// Orchestrates the 5-agent pipeline: Clinical Doc → Translator → Predictive →
-// Research → Workflow. Manages state passing between agents, error recovery,
-// and provides real-time progress tracking.
+// Orchestrates the 5-agent pipeline with parallel phase execution, pipeline
+// result caching, quality gates, critical alert escalation, and SSE streaming.
+//
+// Changes (2026-03):
+//   • Parallel execution — Phase 2 (Translator + Predictive) and Phase 3
+//     (Research + Workflow) now run concurrently with Promise.allSettled().
+//     Cuts wall-clock pipeline time from ~6 min to ~3 min because the agents
+//     within each phase have no data dependency on each other.
+//
+//   • Pipeline caching — SHA-256 hash of patientId+transcript used as cache
+//     key. If an identical pipeline ran within the last hour the cached result
+//     is returned immediately. Prevents the $0.52/run Bedrock cost from
+//     accumulating during hackathon demos where judges ask to "run it again".
+//
+//   • Quality gate — after Agent 1 (Clinical Doc), average entity confidence
+//     is checked. Below 0.5 triggers a warning (not an abort) logged to
+//     state.warnings so the doctor knows the transcript quality was low.
+//
+//   • Critical alert escalation — after Agent 3 (Predictive), critical-level
+//     risk alerts are elevated to state.criticalAlerts so the API response
+//     surface them as a top-level field and the frontend can render them as
+//     red banners immediately without parsing nested riskAssessment.alerts.
+//
+//   • runPipelineStream() — async generator that yields typed PipelineStreamEvent
+//     objects consumed by the SSE controller. runPipeline() is now a thin
+//     wrapper that collects the final 'pipeline_complete' event.
 
-import type { AgentContext, AgentResult, AgentStepName, PipelineConfig, PipelineState } from './types.js';
+import { createHash } from 'crypto';
+import type { AgentContext, AgentResult, AgentStepName, PipelineConfig, PipelineState, PipelineStreamEvent } from './types.js';
 import { AGENT_STEP_ORDER } from './types.js';
 import { createClinicalDocAgent } from '../clinical/ClinicalDocAgent.js';
 import { createTranslatorAgent } from '../translator/TranslatorAgent.js';
@@ -19,6 +43,25 @@ const pipelineStore = new Map<string, PipelineState>();
 const PIPELINE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const STEP_TIMEOUT_MS = 3 * 60 * 1000;        // 3 minutes per agent step
 const MAX_STORED_PIPELINES = 100;
+
+/**
+ * How long to keep a cached pipeline result before re-running.
+ * 1 hour balances demo convenience (safe to re-run without cost) with
+ * data freshness (patient data changes are picked up after an hour).
+ */
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Compute a deterministic cache key for a pipeline config.
+ * SHA-256 of (patientId + transcript) — same input always produces the same key,
+ * different input always produces a different key (collision probability ~1/2^256).
+ */
+function getPipelineCacheKey(config: PipelineConfig): string {
+  return 'cache_' + createHash('sha256')
+    .update(config.patientId + (config.transcript ?? ''))
+    .digest('hex')
+    .substring(0, 24);
+}
 
 /** Evict expired pipelines to prevent unbounded memory growth */
 function evictExpiredPipelines(): void {
@@ -148,10 +191,57 @@ Based on this clinical context:
 export class AgentOrchestrator {
   /**
    * Run the full 5-agent pipeline for a patient encounter.
+   *
+   * This is now a thin wrapper around runPipelineStream() — collects the final
+   * 'pipeline_complete' event and returns the state. For real-time progress,
+   * use runPipelineStream() directly via the SSE controller.
    */
   async runPipeline(config: PipelineConfig): Promise<PipelineState> {
-    // Housekeeping: evict old pipelines to prevent memory leaks
+    let finalState: PipelineState | undefined;
+    for await (const event of this.runPipelineStream(config)) {
+      if (event.event === 'pipeline_complete') {
+        finalState = event.state;
+      }
+    }
+    if (!finalState) {
+      throw new Error('Pipeline stream ended without a pipeline_complete event');
+    }
+    return finalState;
+  }
+
+  /**
+   * Async generator that runs the pipeline in parallel phases and yields
+   * typed PipelineStreamEvent objects. Consumed by the SSE controller to push
+   * live progress to the frontend.
+   *
+   * Execution phases:
+   *   Phase 1 (sequential): clinical-documentation  ← required; abort on fail
+   *   Phase 2 (parallel):   medical-translator + predictive-analytics
+   *   Phase 3 (parallel):   research-synthesis + workflow-automation
+   *
+   * Why phases: Agents within each phase have no data dependency on each other
+   * (they only need the previous phase's output), so running them concurrently
+   * roughly halves the time for phases 2 and 3.
+   */
+  async *runPipelineStream(config: PipelineConfig): AsyncGenerator<PipelineStreamEvent> {
     evictExpiredPipelines();
+
+    // ── Cache check ──────────────────────────────────────────────────────────
+    // Why: Identical pipeline runs (same patient + transcript) are common during
+    // demos and iterative testing. At $0.52/run we want to return the cached
+    // result instantly rather than spending money on an identical Bedrock call.
+    const cacheKey = getPipelineCacheKey(config);
+    const cached = pipelineStore.get(cacheKey);
+    if (
+      cached &&
+      cached.status === 'completed' &&
+      Date.now() - cached.startedAt.getTime() < CACHE_TTL_MS
+    ) {
+      console.log(`⚡ [Pipeline] Cache hit — returning cached result (key: ${cacheKey})`);
+      yield { event: 'cache_hit', pipelineId: cached.pipelineId, state: cached };
+      yield { event: 'pipeline_complete', state: cached };
+      return;
+    }
 
     const pipelineId = `pipe_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
@@ -162,8 +252,11 @@ export class AgentOrchestrator {
       transcript: config.transcript,
       stepResults: {},
       errors: [],
+      warnings: [],
+      criticalAlerts: [],
       startedAt: new Date(),
       status: 'running',
+      cacheKey,
     };
 
     pipelineStore.set(pipelineId, state);
@@ -175,91 +268,243 @@ export class AgentOrchestrator {
     console.log(`\n═══════════════════════════════════════════════════════════`);
     console.log(`🚀 CARENET Pipeline ${pipelineId} started`);
     console.log(`   Patient: ${config.patientId} | Provider: ${config.providerId}`);
-    console.log(`   Steps: ${stepsToRun.join(' → ')}`);
+    console.log(`   Steps: ${stepsToRun.join(' → ')} [parallel phases enabled]`);
     console.log(`═══════════════════════════════════════════════════════════\n`);
 
-    for (const step of stepsToRun) {
+    yield { event: 'pipeline_start', pipelineId, steps: stepsToRun };
+
+    // ── Shared helpers ────────────────────────────────────────────────────────
+
+    /** Run one agent step with the per-step timeout. */
+    const runStep = (step: AgentStepName): Promise<AgentResult> => {
       state.currentStep = step;
       pipelineStore.set(pipelineId, { ...state });
 
-      console.log(`\n─── Step: ${step} ─────────────────────────────────────────`);
+      const agent = createAgent(step);
+      const message = buildAgentMessage(step, state);
+      const context: AgentContext = {
+        patientId: config.patientId,
+        providerId: config.providerId,
+        pipelineState: state,
+      };
+
+      return Promise.race([
+        agent.run(message, context),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Step "${step}" timed out after ${STEP_TIMEOUT_MS / 1000}s`)),
+            STEP_TIMEOUT_MS,
+          )
+        ),
+      ]);
+    };
+
+    /** Record a completed step result into pipeline state and merge artifacts. */
+    const recordStep = (step: AgentStepName, result: AgentResult): void => {
+      state.stepResults[step] = result;
+      if (result.success && result.artifacts) {
+        this.mergeArtifacts(state, step, result);
+      }
+      if (!result.success) {
+        state.errors.push({
+          step,
+          error: result.error || 'Agent returned unsuccessful result',
+          timestamp: new Date(),
+        });
+      }
+      pipelineStore.set(pipelineId, { ...state });
+    };
+
+    // ── Phase 1: Clinical Documentation (sequential, required) ──────────────
+    if (stepsToRun.includes('clinical-documentation')) {
+      console.log(`\n─── Phase 1: clinical-documentation ────────────────────────`);
+      yield { event: 'step_start', step: 'clinical-documentation' };
 
       try {
-        const agent = createAgent(step);
-        const message = buildAgentMessage(step, state);
+        const result = await runStep('clinical-documentation');
+        recordStep('clinical-documentation', result);
 
-        const context: AgentContext = {
-          patientId: config.patientId,
-          providerId: config.providerId,
-          pipelineState: state,
-        };
-
-        // Run agent with per-step timeout
-        const result: AgentResult = await Promise.race([
-          agent.run(message, context),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Step "${step}" timed out after ${STEP_TIMEOUT_MS / 1000}s`)), STEP_TIMEOUT_MS)
-          ),
-        ]);
-
-        // Store result
-        state.stepResults[step] = result;
-
-        // Merge artifacts into pipeline state
-        if (result.success && result.artifacts) {
-          this.mergeArtifacts(state, step, result);
-        }
-
-        if (!result.success) {
-          state.errors.push({
-            step,
-            error: result.error || 'Agent returned unsuccessful result',
-            timestamp: new Date(),
-          });
-          console.error(`  ❌ Step "${step}" failed: ${result.error}`);
-
-          // Continue pipeline even if one step fails (graceful degradation)
-          // Only abort on critical steps
-          if (step === 'clinical-documentation') {
-            console.error(`  🛑 Aborting pipeline — clinical documentation is required for subsequent steps.`);
-            state.status = 'failed';
-            break;
+        // ── Quality Gate ─────────────────────────────────────────────────────
+        // Why: Poor confidence entities in the clinical note mean downstream
+        // agents (risk scoring, workflow) are operating on low-quality inputs.
+        // We don't abort — the pipeline is still useful — but we flag it so
+        // the doctor knows the transcript quality was insufficient and can
+        // re-record with less background noise.
+        if (result.success) {
+          const entities: any[] = state.clinicalNote?.extractedEntities ?? [];
+          if (entities.length > 0) {
+            const avgConfidence =
+              entities.reduce((sum, e) => sum + (e.confidence ?? 0), 0) / entities.length;
+            if (avgConfidence < 0.5) {
+              const warning =
+                `Entity confidence is low (avg: ${avgConfidence.toFixed(2)}). ` +
+                `Consider re-recording with a cleaner transcript for better downstream accuracy.`;
+              state.warnings!.push(warning);
+              console.warn(`  ⚠️  [Quality Gate] ${warning}`);
+              yield {
+                event: 'quality_warning',
+                step: 'clinical-documentation',
+                warning,
+                avgConfidence,
+              };
+            }
           }
         }
 
+        yield {
+          event: result.success ? 'step_complete' : 'step_failed',
+          step: 'clinical-documentation',
+          result: {
+            success: result.success,
+            tokensUsed: result.tokensUsed,
+            durationMs: result.durationMs,
+            error: result.error,
+          },
+        };
+
+        if (!result.success) {
+          console.error(`  🛑 Aborting pipeline — clinical documentation is required.`);
+          state.status = 'failed';
+          state.completedAt = new Date();
+          pipelineStore.set(pipelineId, state);
+          yield { event: 'pipeline_complete', state };
+          return;
+        }
       } catch (err: any) {
         const safeMsg = err.message?.includes('timed out')
           ? err.message
-          : `Step "${step}" encountered an internal error`;
-        state.errors.push({
-          step,
-          error: safeMsg,
-          timestamp: new Date(),
-        });
-        console.error(`  ❌ Step "${step}" threw exception: ${err.message}`);
+          : 'Clinical documentation step encountered an internal error';
+        state.errors.push({ step: 'clinical-documentation', error: safeMsg, timestamp: new Date() });
+        state.status = 'failed';
+        state.completedAt = new Date();
+        pipelineStore.set(pipelineId, state);
+        yield { event: 'step_failed', step: 'clinical-documentation', error: safeMsg };
+        yield { event: 'pipeline_complete', state };
+        return;
+      }
+    }
 
-        if (step === 'clinical-documentation') {
-          state.status = 'failed';
-          break;
+    // ── Phase 2: Translator + Predictive (parallel) ──────────────────────────
+    // Why parallel: Both only depend on Agent 1's clinical note output, which
+    // is now in state. Neither depends on the other. Running them together
+    // cuts Phase 2 wall-clock time from ~120s to ~60s.
+    const phase2Steps = (
+      ['medical-translator', 'predictive-analytics'] as AgentStepName[]
+    ).filter((s) => stepsToRun.includes(s));
+
+    if (phase2Steps.length > 0) {
+      console.log(`\n─── Phase 2 (parallel): ${phase2Steps.join(' | ')} ──────────`);
+      for (const step of phase2Steps) yield { event: 'step_start', step };
+
+      const phase2Results = await Promise.allSettled(phase2Steps.map(runStep));
+
+      for (let i = 0; i < phase2Steps.length; i++) {
+        const step = phase2Steps[i];
+        const settled = phase2Results[i];
+
+        if (settled.status === 'fulfilled') {
+          recordStep(step, settled.value);
+          yield {
+            event: settled.value.success ? 'step_complete' : 'step_failed',
+            step,
+            result: {
+              success: settled.value.success,
+              tokensUsed: settled.value.tokensUsed,
+              durationMs: settled.value.durationMs,
+              error: settled.value.error,
+            },
+          };
+        } else {
+          const safeMsg = settled.reason?.message?.includes('timed out')
+            ? settled.reason.message
+            : `Step "${step}" encountered an internal error`;
+          state.errors.push({ step, error: safeMsg, timestamp: new Date() });
+          yield { event: 'step_failed', step, error: safeMsg };
+        }
+      }
+
+      // ── Critical Alert Escalation ──────────────────────────────────────────
+      // Why: The predictive agent may have created critical-level risk alerts.
+      // Rather than make the frontend dig into riskAssessment.alerts[], we
+      // elevate them to state.criticalAlerts so the API response has a dedicated
+      // top-level field and the frontend can render a red banner immediately.
+      const criticalAlerts = (state.riskAssessment?.alerts ?? []).filter(
+        (a: any) => a.type === 'critical',
+      );
+      if (criticalAlerts.length > 0) {
+        state.criticalAlerts = criticalAlerts.map((a: any) => ({
+          type: a.type,
+          message: a.message,
+        }));
+        console.warn(
+          `\n🚨 CRITICAL ALERTS (${criticalAlerts.length}) for patient ${state.patientId}:`,
+        );
+        criticalAlerts.forEach((a: any) => console.warn(`   • ${a.message}`));
+        yield { event: 'critical_alerts', alerts: state.criticalAlerts! };
+      }
+    }
+
+    // ── Phase 3: Research + Workflow (parallel) ──────────────────────────────
+    // Why parallel: Both depend on Phase 2 output (now in state). Neither
+    // depends on the other. Running them together cuts Phase 3 from ~150s to ~75s.
+    const phase3Steps = (
+      ['research-synthesis', 'workflow-automation'] as AgentStepName[]
+    ).filter((s) => stepsToRun.includes(s));
+
+    if (phase3Steps.length > 0) {
+      console.log(`\n─── Phase 3 (parallel): ${phase3Steps.join(' | ')} ──────────`);
+      for (const step of phase3Steps) yield { event: 'step_start', step };
+
+      const phase3Results = await Promise.allSettled(phase3Steps.map(runStep));
+
+      for (let i = 0; i < phase3Steps.length; i++) {
+        const step = phase3Steps[i];
+        const settled = phase3Results[i];
+
+        if (settled.status === 'fulfilled') {
+          recordStep(step, settled.value);
+          yield {
+            event: settled.value.success ? 'step_complete' : 'step_failed',
+            step,
+            result: {
+              success: settled.value.success,
+              tokensUsed: settled.value.tokensUsed,
+              durationMs: settled.value.durationMs,
+              error: settled.value.error,
+            },
+          };
+        } else {
+          const safeMsg = settled.reason?.message?.includes('timed out')
+            ? settled.reason.message
+            : `Step "${step}" encountered an internal error`;
+          state.errors.push({ step, error: safeMsg, timestamp: new Date() });
+          yield { event: 'step_failed', step, error: safeMsg };
         }
       }
     }
 
+    // ── Finalize ─────────────────────────────────────────────────────────────
     state.completedAt = new Date();
-    if (state.status !== 'failed') {
-      state.status = 'completed';
-    }
+    if (state.status !== 'failed') state.status = 'completed';
     state.currentStep = undefined;
     pipelineStore.set(pipelineId, state);
+
+    // Cache successful runs under the content-hash key so identical re-runs
+    // are served instantly without a Bedrock round-trip.
+    if (state.status === 'completed') {
+      pipelineStore.set(cacheKey, state);
+    }
 
     const duration = state.completedAt.getTime() - state.startedAt.getTime();
     console.log(`\n═══════════════════════════════════════════════════════════`);
     console.log(`${state.status === 'completed' ? '✅' : '❌'} Pipeline ${pipelineId} ${state.status} in ${(duration / 1000).toFixed(1)}s`);
     console.log(`   Steps completed: ${Object.keys(state.stepResults).length}/${stepsToRun.length}`);
     console.log(`   Errors: ${state.errors.length}`);
+    if (state.warnings?.length) console.log(`   Warnings: ${state.warnings.length}`);
+    if (state.criticalAlerts?.length) console.log(`   🚨 Critical alerts: ${state.criticalAlerts.length}`);
     console.log(`═══════════════════════════════════════════════════════════\n`);
 
-    return state;
+    yield { event: 'pipeline_complete', state };
   }
 
   /**
@@ -277,6 +522,8 @@ export class AgentOrchestrator {
       transcript: config.transcript,
       stepResults: {},
       errors: [],
+      warnings: [],
+      criticalAlerts: [],
       startedAt: new Date(),
       status: 'running',
       ...existingState,

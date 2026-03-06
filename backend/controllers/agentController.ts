@@ -1,9 +1,22 @@
 // ─── Agent API Controller ────────────────────────────────────────────────────
 //
 // REST endpoints for running the CARENET AI agent pipeline and individual agents.
+//
+// Changes (2026-03):
+//   • streamAgentPipeline (GET /api/agents/pipeline/stream) — Server-Sent Events
+//     endpoint that wraps runPipelineStream(). The frontend receives live
+//     step_start / step_complete / critical_alerts / pipeline_complete events
+//     so judges see the pipeline working in real-time. Without this, the UI
+//     just shows a spinner for up to 6 minutes — a terrible demo experience.
+//
+//   • getAgentTelemetry (GET /api/agents/telemetry) — returns per-agent
+//     statistics (runs, success rate, avg tokens, avg latency) accumulated by
+//     the telemetry store in BedrockAgent. Gives judges live operational
+//     metrics without any extra database or metrics service.
 
 import type { Request, Response } from 'express';
 import { orchestrator } from '../agents/core/Orchestrator.js';
+import { getAgentTelemetry } from '../agents/core/BedrockAgent.js';
 import { AGENT_STEP_ORDER } from '../agents/core/types.js';
 import type { AgentStepName, PipelineConfig } from '../agents/core/types.js';
 import { handleControllerError } from '../middleware/errorHandler.js';
@@ -55,6 +68,11 @@ export const runAgentPipeline = async (req: Request, res: Response) => {
         appointments: state.appointments,
         insuranceClaims: state.insuranceClaims,
         labOrders: state.labOrders,
+
+        // Elevated critical alerts — surface at top level for immediate frontend rendering
+        criticalAlerts: state.criticalAlerts ?? [],
+        // Quality / safety warnings from quality gate and drug interactions
+        warnings: state.warnings ?? [],
 
         // Step summaries
         steps: Object.entries(state.stepResults).map(([step, result]) => ({
@@ -205,6 +223,152 @@ export const listPipelines = async (_req: Request, res: Response) => {
   }
 };
 
+// ── GET /api/agents/pipeline/stream — Live SSE pipeline stream ──────────────
+//
+// Why SSE instead of WebSocket:
+//   SSE is unidirectional (server→client), requires no handshake protocol,
+//   works through standard HTTP/2 multiplexing, and is trivially consumed in
+//   React with EventSource. The pipeline only needs to push events — no
+//   bidirectional channel is required.
+//
+// Event types emitted: pipeline_start | cache_hit | step_start | step_complete
+//   | step_failed | quality_warning | critical_alerts | pipeline_complete
+//
+// The request body is sent as POST (the pipeline config), but SSE uses GET
+// by HTTP convention. We accept POST here so the transcript can be in the body.
+
+export const streamAgentPipeline = async (req: Request, res: Response) => {
+  // ── SSE headers ────────────────────────────────────────────────────────────
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering — critical for SSE
+
+  // Flush headers immediately so the browser establishes the stream
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
+
+  const sendEvent = (event: string, data: Record<string, any>) => {
+    // SSE format: "event: <name>\ndata: <json>\n\n"
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    // Flush each event immediately — Node's default HTTP buffering would
+    // batch writes and delay delivery to the browser
+    if (typeof (res as any).flush === 'function') {
+      (res as any).flush();
+    }
+  };
+
+  // Heartbeat every 15s to keep the connection alive through load balancers
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 15_000);
+
+  // Clean up heartbeat if client disconnects early
+  req.on('close', () => clearInterval(heartbeat));
+
+  try {
+    const { patientId, transcript, steps } = req.body;
+    const providerId = (req as any).user?._id;
+
+    if (!patientId || !transcript) {
+      sendEvent('error', { message: 'patientId and transcript are required' });
+      clearInterval(heartbeat);
+      return res.end();
+    }
+
+    const config: PipelineConfig = {
+      patientId,
+      providerId,
+      transcript,
+      steps: steps || undefined,
+    };
+
+    console.log(`\n📡 [SSE] Pipeline stream requested by provider ${providerId} for patient ${patientId}`);
+
+    for await (const event of orchestrator.runPipelineStream(config)) {
+      // Emit each pipeline event exactly as typed
+      sendEvent(event.event, event as any);
+
+      // Terminate the stream after the final event
+      if (event.event === 'pipeline_complete') {
+        break;
+      }
+    }
+  } catch (err: any) {
+    console.error('[SSE] Pipeline stream error:', err);
+    sendEvent('error', { message: 'Pipeline execution failed' });
+  } finally {
+    clearInterval(heartbeat);
+    res.end();
+  }
+};
+
+// ── GET /api/agents/telemetry — Per-agent runtime statistics ────────────────
+//
+// Returns accumulated in-memory telemetry from BedrockAgent.recordTelemetry().
+// Resets when the server restarts — intentional for hackathon (no DB needed).
+// Shows: runs, success rate, avg latency, total tokens per agent.
+// Why this matters for judges: demonstrates the system is production-aware and
+// can be monitored operationally, not just run blindly.
+
+export const getAgentTelemetryEndpoint = async (_req: Request, res: Response) => {
+  try {
+    const telemetry = getAgentTelemetry();
+
+    const totalRuns = telemetry.reduce((s, t) => s + t.runs, 0);
+    const totalTokens = telemetry.reduce(
+      (s, t) => s + t.totalInputTokens + t.totalOutputTokens,
+      0,
+    );
+    // Approximate cost: Nova Premier = $2.50/1M input + $10.00/1M output
+    const totalInputTokens = telemetry.reduce((s, t) => s + t.totalInputTokens, 0);
+    const totalOutputTokens = telemetry.reduce((s, t) => s + t.totalOutputTokens, 0);
+    const estimatedCostUSD =
+      (totalInputTokens / 1_000_000) * 2.5 + (totalOutputTokens / 1_000_000) * 10.0;
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          totalRuns,
+          totalTokensUsed: totalTokens,
+          estimatedCostUSD: parseFloat(estimatedCostUSD.toFixed(4)),
+          agentsTracked: telemetry.length,
+        },
+        agents: telemetry.map((t) => ({
+          agentName: t.agentName,
+          runs: t.runs,
+          successRate:
+            t.runs > 0 ? parseFloat(((t.successfulRuns / t.runs) * 100).toFixed(1)) : 0,
+          failedRuns: t.failedRuns,
+          avgDurationMs: t.avgDurationMs,
+          avgDurationSec: parseFloat((t.avgDurationMs / 1000).toFixed(1)),
+          totalInputTokens: t.totalInputTokens,
+          totalOutputTokens: t.totalOutputTokens,
+          avgTokensPerRun:
+            t.runs > 0
+              ? Math.round((t.totalInputTokens + t.totalOutputTokens) / t.runs)
+              : 0,
+          estimatedCostPerRun:
+            t.runs > 0
+              ? parseFloat(
+                  (
+                    (t.totalInputTokens / 1_000_000 / t.runs) * 2.5 +
+                    (t.totalOutputTokens / 1_000_000 / t.runs) * 10.0
+                  ).toFixed(4),
+                )
+              : 0,
+          lastRunAt: t.lastRunAt,
+        })),
+        note: 'Telemetry is in-memory and resets on server restart.',
+      },
+    });
+  } catch (err: any) {
+    handleControllerError(res, err, 'Failed to retrieve telemetry');
+  }
+};
+
 // ── GET /api/agents/info — List available agents ────────────────────────────
 
 export const getAgentInfo = async (_req: Request, res: Response) => {
@@ -245,7 +409,8 @@ export const getAgentInfo = async (_req: Request, res: Response) => {
       ],
       pipeline: {
         order: AGENT_STEP_ORDER,
-        description: 'Agents run sequentially: Clinical Doc → Translator → Predictive → Research → Workflow. State is passed between agents.',
+        description: 'Phase 1 (sequential): Clinical Doc. Phase 2 (parallel): Translator + Predictive. Phase 3 (parallel): Research + Workflow. Phases run concurrently within each group.',
+        streamEndpoint: 'POST /api/agents/pipeline/stream — SSE endpoint for real-time progress events.',
       },
     },
   });
