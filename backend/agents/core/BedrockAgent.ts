@@ -146,14 +146,18 @@ export class BedrockAgent {
     });
     this.toolMap = new Map(config.tools.map((t) => [t.name, t]));
     // Start from the configured model's position in the fallback chain.
-    // If it's not in the chain (custom/fine-tuned model), default to 0.
+    // If it's not in the chain (custom/fine-tuned model), use -1 to indicate
+    // "no active fallback chain" so we keep the configured model.
     const idx = MODEL_FALLBACK_CHAIN.indexOf(config.modelId);
-    this.currentModelIndex = idx >= 0 ? idx : 0;
+    this.currentModelIndex = idx >= 0 ? idx : -1;
   }
 
   /** The currently active model ID — may differ from config.modelId after a throttle fallback. */
   get activeModelId(): string {
-    return MODEL_FALLBACK_CHAIN[this.currentModelIndex] ?? this.config.modelId;
+    if (this.currentModelIndex >= 0 && this.currentModelIndex < MODEL_FALLBACK_CHAIN.length) {
+      return MODEL_FALLBACK_CHAIN[this.currentModelIndex];
+    }
+    return this.config.modelId;
   }
 
   // ── Build Bedrock tool config from our tool definitions ──────────────────
@@ -202,7 +206,7 @@ export class BedrockAgent {
       try {
         // Rebuild command with active model ID (may be a fallback after throttle)
         const activeCommand =
-          this.currentModelIndex > 0
+          this.currentModelIndex >= 0
             ? new ConverseCommand({ ...command.input, modelId: this.activeModelId })
             : command;
 
@@ -223,11 +227,11 @@ export class BedrockAgent {
 
         // Throttling → immediately try next model in chain (no delay needed)
         if (isThrottlingError(err)) {
-          const nextIdx = this.currentModelIndex + 1;
+          const nextIdx = this.currentModelIndex < 0 ? 0 : this.currentModelIndex + 1;
           if (nextIdx < MODEL_FALLBACK_CHAIN.length) {
             this.currentModelIndex = nextIdx;
             console.warn(
-              `  🔄 [${this.config.name}] Throttled on ${MODEL_FALLBACK_CHAIN[nextIdx - 1]}. ` +
+              `  🔄 [${this.config.name}] Throttled on ${err?.name || this.config.modelId}. ` +
               `Falling back to ${this.activeModelId}...`,
             );
             continue; // Retry immediately with the fallback model

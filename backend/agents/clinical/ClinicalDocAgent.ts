@@ -20,6 +20,123 @@ import ClinicalNote from '../../models/ClinicalNote.js';
 
 const MODEL_ID = process.env.BEDROCK_MODEL_ID || 'us.amazon.nova-premier-v1:0';
 
+type InteractionRule = {
+  drug: string;
+  interactsWith: string[];
+  severity: 'high' | 'moderate' | 'low';
+  effect: string;
+};
+
+// Curated interaction database — clinically significant pairs.
+// This covers common ED-presenting adverse drug event pairs.
+const INTERACTIONS: InteractionRule[] = [
+  // Anticoagulants
+  {
+    drug: 'warfarin',
+    interactsWith: ['aspirin', 'ibuprofen', 'naproxen', 'clopidogrel', 'amiodarone', 'fluconazole', 'metronidazole', 'trimethoprim'],
+    severity: 'high',
+    effect: 'Increased bleeding risk — warfarin levels elevated or additive antiplatelet effect',
+  },
+  // SSRIs / Serotonin Syndrome
+  {
+    drug: 'ssri',
+    interactsWith: ['tramadol', 'linezolid', 'maoi', 'triptans', 'fentanyl', 'lithium', 'dextromethorphan'],
+    severity: 'high',
+    effect: 'Serotonin syndrome risk — hyperthermia, agitation, neuromuscular abnormalities',
+  },
+  {
+    drug: 'sertraline',
+    interactsWith: ['tramadol', 'linezolid', 'maoi', 'triptans', 'fentanyl'],
+    severity: 'high',
+    effect: 'Serotonin syndrome risk',
+  },
+  {
+    drug: 'fluoxetine',
+    interactsWith: ['tramadol', 'maoi', 'triptans', 'codeine', 'tamoxifen'],
+    severity: 'high',
+    effect: 'Serotonin syndrome or CYP2D6 inhibition reducing efficacy',
+  },
+  // QT Prolongation
+  {
+    drug: 'azithromycin',
+    interactsWith: ['amiodarone', 'haloperidol', 'methadone', 'ciprofloxacin', 'fluconazole'],
+    severity: 'high',
+    effect: 'Additive QT prolongation — risk of torsades de pointes',
+  },
+  {
+    drug: 'ciprofloxacin',
+    interactsWith: ['amiodarone', 'azithromycin', 'haloperidol', 'methadone'],
+    severity: 'high',
+    effect: 'Additive QT prolongation',
+  },
+  // ACE Inhibitors & Potassium
+  {
+    drug: 'lisinopril',
+    interactsWith: ['spironolactone', 'potassium', 'trimethoprim', 'nsaids', 'ibuprofen'],
+    severity: 'moderate',
+    effect: 'Hyperkalemia risk or reduced antihypertensive efficacy with NSAIDs',
+  },
+  {
+    drug: 'enalapril',
+    interactsWith: ['spironolactone', 'potassium', 'nsaids'],
+    severity: 'moderate',
+    effect: 'Hyperkalemia risk',
+  },
+  // Metformin
+  {
+    drug: 'metformin',
+    interactsWith: ['contrast dye', 'alcohol', 'topiramate'],
+    severity: 'moderate',
+    effect: 'Lactic acidosis risk with contrast dye; alcohol increases risk. Topiramate may increase metformin levels.',
+  },
+  // Statins
+  {
+    drug: 'simvastatin',
+    interactsWith: ['amiodarone', 'amlodipine', 'clarithromycin', 'fluconazole', 'gemfibrozil'],
+    severity: 'high',
+    effect: 'Myopathy/rhabdomyolysis risk — statin levels markedly increased',
+  },
+  {
+    drug: 'atorvastatin',
+    interactsWith: ['clarithromycin', 'gemfibrozil', 'ciclosporin'],
+    severity: 'moderate',
+    effect: 'Statin levels elevated — myopathy risk',
+  },
+  // Opioids
+  {
+    drug: 'opioids',
+    interactsWith: ['benzodiazepines', 'diazepam', 'lorazepam', 'alprazolam', 'clonazepam', 'zolpidem', 'gabapentin', 'pregabalin'],
+    severity: 'high',
+    effect: 'CNS/respiratory depression — risk of fatal overdose (FDA Black Box Warning)',
+  },
+  {
+    drug: 'morphine',
+    interactsWith: ['benzodiazepines', 'diazepam', 'lorazepam', 'gabapentin'],
+    severity: 'high',
+    effect: 'CNS/respiratory depression',
+  },
+  {
+    drug: 'oxycodone',
+    interactsWith: ['benzodiazepines', 'alcohol', 'gabapentin', 'pregabalin'],
+    severity: 'high',
+    effect: 'CNS/respiratory depression',
+  },
+  // Lithium
+  {
+    drug: 'lithium',
+    interactsWith: ['nsaids', 'ibuprofen', 'diuretics', 'ace inhibitors', 'thiazide'],
+    severity: 'high',
+    effect: 'Lithium toxicity — NSAIDs and diuretics reduce renal clearance',
+  },
+  // Methotrexate
+  {
+    drug: 'methotrexate',
+    interactsWith: ['nsaids', 'aspirin', 'trimethoprim', 'penicillin', 'probenecid'],
+    severity: 'high',
+    effect: 'Methotrexate toxicity — reduced renal elimination',
+  },
+];
+
 // ── Tool Implementations ────────────────────────────────────────────────────
 
 const tools: ToolDefinition[] = [
@@ -94,123 +211,6 @@ const tools: ToolDefinition[] = [
       const existingMedNames: string[] = (patient?.medications ?? [])
         .filter((m: any) => !m.endDate || new Date(m.endDate) > new Date())
         .map((m: any) => (m.name ?? '').toLowerCase());
-
-      // Curated interaction database — clinically significant pairs.
-      // Format: { drug: [list of drugs it interacts with], severity, mechanism }
-      // This covers the most common ED-presenting adverse drug event pairs
-      // (source: FDA Drug Interaction Labeling, clinical pharmacology references).
-      const INTERACTIONS: Array<{
-        drug: string;
-        interactsWith: string[];
-        severity: 'high' | 'moderate' | 'low';
-        effect: string;
-      }> = [
-        // Anticoagulants
-        {
-          drug: 'warfarin',
-          interactsWith: ['aspirin', 'ibuprofen', 'naproxen', 'clopidogrel', 'amiodarone', 'fluconazole', 'metronidazole', 'trimethoprim'],
-          severity: 'high',
-          effect: 'Increased bleeding risk — warfarin levels elevated or additive antiplatelet effect',
-        },
-        // SSRIs / Serotonin Syndrome
-        {
-          drug: 'ssri',
-          interactsWith: ['tramadol', 'linezolid', 'maoi', 'triptans', 'fentanyl', 'lithium', 'dextromethorphan'],
-          severity: 'high',
-          effect: 'Serotonin syndrome risk — hyperthermia, agitation, neuromuscular abnormalities',
-        },
-        {
-          drug: 'sertraline',
-          interactsWith: ['tramadol', 'linezolid', 'maoi', 'triptans', 'fentanyl'],
-          severity: 'high',
-          effect: 'Serotonin syndrome risk',
-        },
-        {
-          drug: 'fluoxetine',
-          interactsWith: ['tramadol', 'maoi', 'triptans', 'codeine', 'tamoxifen'],
-          severity: 'high',
-          effect: 'Serotonin syndrome or CYP2D6 inhibition reducing efficacy',
-        },
-        // QT Prolongation
-        {
-          drug: 'azithromycin',
-          interactsWith: ['amiodarone', 'haloperidol', 'methadone', 'ciprofloxacin', 'fluconazole'],
-          severity: 'high',
-          effect: 'Additive QT prolongation — risk of torsades de pointes',
-        },
-        {
-          drug: 'ciprofloxacin',
-          interactsWith: ['amiodarone', 'azithromycin', 'haloperidol', 'methadone'],
-          severity: 'high',
-          effect: 'Additive QT prolongation',
-        },
-        // ACE Inhibitors & Potassium
-        {
-          drug: 'lisinopril',
-          interactsWith: ['spironolactone', 'potassium', 'trimethoprim', 'nsaids', 'ibuprofen'],
-          severity: 'moderate',
-          effect: 'Hyperkalemia risk or reduced antihypertensive efficacy with NSAIDs',
-        },
-        {
-          drug: 'enalapril',
-          interactsWith: ['spironolactone', 'potassium', 'nsaids'],
-          severity: 'moderate',
-          effect: 'Hyperkalemia risk',
-        },
-        // Metformin
-        {
-          drug: 'metformin',
-          interactsWith: ['contrast dye', 'alcohol', 'topiramate'],
-          severity: 'moderate',
-          effect: 'Lactic acidosis risk with contrast dye; alcohol increases risk. Topiramate may increase metformin levels.',
-        },
-        // Statins
-        {
-          drug: 'simvastatin',
-          interactsWith: ['amiodarone', 'amlodipine', 'clarithromycin', 'fluconazole', 'gemfibrozil'],
-          severity: 'high',
-          effect: 'Myopathy/rhabdomyolysis risk — statin levels markedly increased',
-        },
-        {
-          drug: 'atorvastatin',
-          interactsWith: ['clarithromycin', 'gemfibrozil', 'ciclosporin'],
-          severity: 'moderate',
-          effect: 'Statin levels elevated — myopathy risk',
-        },
-        // Opioids
-        {
-          drug: 'opioids',
-          interactsWith: ['benzodiazepines', 'diazepam', 'lorazepam', 'alprazolam', 'clonazepam', 'zolpidem', 'gabapentin', 'pregabalin'],
-          severity: 'high',
-          effect: 'CNS/respiratory depression — risk of fatal overdose (FDA Black Box Warning)',
-        },
-        {
-          drug: 'morphine',
-          interactsWith: ['benzodiazepines', 'diazepam', 'lorazepam', 'gabapentin'],
-          severity: 'high',
-          effect: 'CNS/respiratory depression',
-        },
-        {
-          drug: 'oxycodone',
-          interactsWith: ['benzodiazepines', 'alcohol', 'gabapentin', 'pregabalin'],
-          severity: 'high',
-          effect: 'CNS/respiratory depression',
-        },
-        // Lithium
-        {
-          drug: 'lithium',
-          interactsWith: ['nsaids', 'ibuprofen', 'diuretics', 'ace inhibitors', 'thiazide'],
-          severity: 'high',
-          effect: 'Lithium toxicity — NSAIDs and diuretics reduce renal clearance',
-        },
-        // Methotrexate
-        {
-          drug: 'methotrexate',
-          interactsWith: ['nsaids', 'aspirin', 'trimethoprim', 'penicillin', 'probenecid'],
-          severity: 'high',
-          effect: 'Methotrexate toxicity — reduced renal elimination',
-        },
-      ];
 
       const found: Array<{
         newDrug: string;

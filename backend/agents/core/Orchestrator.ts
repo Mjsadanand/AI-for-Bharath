@@ -40,9 +40,11 @@ import type { BedrockAgent } from './BedrockAgent.js';
 // ── In-memory pipeline state store (use Redis/DB in production) ─────────────
 
 const pipelineStore = new Map<string, PipelineState>();
+const pipelineResultCache = new Map<string, { state: PipelineState; cachedAt: number }>();
 const PIPELINE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const STEP_TIMEOUT_MS = 3 * 60 * 1000;        // 3 minutes per agent step
 const MAX_STORED_PIPELINES = 100;
+const MAX_CACHE_ENTRIES = 100;
 
 /**
  * How long to keep a cached pipeline result before re-running.
@@ -80,6 +82,24 @@ function evictExpiredPipelines(): void {
     const toRemove = sorted.slice(0, pipelineStore.size - MAX_STORED_PIPELINES);
     for (const [id] of toRemove) {
       pipelineStore.delete(id);
+    }
+  }
+
+  // Evict stale cache entries by TTL.
+  for (const [key, cached] of pipelineResultCache) {
+    if (now - cached.cachedAt > CACHE_TTL_MS) {
+      pipelineResultCache.delete(key);
+    }
+  }
+
+  // Keep cache bounded as well (independent from pipeline history).
+  if (pipelineResultCache.size > MAX_CACHE_ENTRIES) {
+    const sorted = [...pipelineResultCache.entries()].sort(
+      (a, b) => a[1].cachedAt - b[1].cachedAt,
+    );
+    const toRemove = sorted.slice(0, pipelineResultCache.size - MAX_CACHE_ENTRIES);
+    for (const [key] of toRemove) {
+      pipelineResultCache.delete(key);
     }
   }
 }
@@ -226,20 +246,27 @@ export class AgentOrchestrator {
   async *runPipelineStream(config: PipelineConfig): AsyncGenerator<PipelineStreamEvent> {
     evictExpiredPipelines();
 
+    const isAborted = () => !!config.abortSignal?.aborted;
+    const throwIfAborted = () => {
+      if (isAborted()) {
+        throw new Error('Pipeline cancelled by client disconnect');
+      }
+    };
+
     // ── Cache check ──────────────────────────────────────────────────────────
     // Why: Identical pipeline runs (same patient + transcript) are common during
     // demos and iterative testing. At $0.52/run we want to return the cached
     // result instantly rather than spending money on an identical Bedrock call.
     const cacheKey = getPipelineCacheKey(config);
-    const cached = pipelineStore.get(cacheKey);
+    const cached = pipelineResultCache.get(cacheKey);
     if (
       cached &&
-      cached.status === 'completed' &&
-      Date.now() - cached.startedAt.getTime() < CACHE_TTL_MS
+      cached.state.status === 'completed' &&
+      Date.now() - cached.cachedAt < CACHE_TTL_MS
     ) {
       console.log(`⚡ [Pipeline] Cache hit — returning cached result (key: ${cacheKey})`);
-      yield { event: 'cache_hit', pipelineId: cached.pipelineId, state: cached };
-      yield { event: 'pipeline_complete', state: cached };
+      yield { event: 'cache_hit', pipelineId: cached.state.pipelineId, state: cached.state };
+      yield { event: 'pipeline_complete', state: cached.state };
       return;
     }
 
@@ -260,6 +287,7 @@ export class AgentOrchestrator {
     };
 
     pipelineStore.set(pipelineId, state);
+    throwIfAborted();
 
     const stepsToRun = config.steps
       ? AGENT_STEP_ORDER.filter((s) => config.steps!.includes(s))
@@ -277,8 +305,7 @@ export class AgentOrchestrator {
 
     /** Run one agent step with the per-step timeout. */
     const runStep = (step: AgentStepName): Promise<AgentResult> => {
-      state.currentStep = step;
-      pipelineStore.set(pipelineId, { ...state });
+      throwIfAborted();
 
       const agent = createAgent(step);
       const message = buildAgentMessage(step, state);
@@ -288,15 +315,40 @@ export class AgentOrchestrator {
         pipelineState: state,
       };
 
-      return Promise.race([
-        agent.run(message, context),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`Step "${step}" timed out after ${STEP_TIMEOUT_MS / 1000}s`)),
-            STEP_TIMEOUT_MS,
-          )
-        ),
-      ]);
+      return new Promise<AgentResult>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error(`Step "${step}" timed out after ${STEP_TIMEOUT_MS / 1000}s`));
+        }, STEP_TIMEOUT_MS);
+
+        agent
+          .run(message, context)
+          .then((result) => {
+            clearTimeout(timeoutId);
+            resolve(result);
+          })
+          .catch((error) => {
+            clearTimeout(timeoutId);
+            reject(error);
+          });
+      });
+    };
+
+    const markStepStarted = (step: AgentStepName): void => {
+      state.runningSteps = [...(state.runningSteps ?? []), step];
+      state.currentStep =
+        state.runningSteps.length > 1 ? 'parallel' : state.runningSteps[0];
+      pipelineStore.set(pipelineId, { ...state });
+    };
+
+    const markStepFinished = (step: AgentStepName): void => {
+      state.runningSteps = (state.runningSteps ?? []).filter((s) => s !== step);
+      state.currentStep =
+        state.runningSteps.length > 1
+          ? 'parallel'
+          : state.runningSteps.length === 1
+            ? state.runningSteps[0]
+            : undefined;
+      pipelineStore.set(pipelineId, { ...state });
     };
 
     /** Record a completed step result into pipeline state and merge artifacts. */
@@ -318,11 +370,13 @@ export class AgentOrchestrator {
     // ── Phase 1: Clinical Documentation (sequential, required) ──────────────
     if (stepsToRun.includes('clinical-documentation')) {
       console.log(`\n─── Phase 1: clinical-documentation ────────────────────────`);
+      markStepStarted('clinical-documentation');
       yield { event: 'step_start', step: 'clinical-documentation' };
 
       try {
         const result = await runStep('clinical-documentation');
         recordStep('clinical-documentation', result);
+        markStepFinished('clinical-documentation');
 
         // ── Quality Gate ─────────────────────────────────────────────────────
         // Why: Poor confidence entities in the clinical note mean downstream
@@ -366,17 +420,22 @@ export class AgentOrchestrator {
           console.error(`  🛑 Aborting pipeline — clinical documentation is required.`);
           state.status = 'failed';
           state.completedAt = new Date();
+          state.runningSteps = [];
+          state.currentStep = undefined;
           pipelineStore.set(pipelineId, state);
           yield { event: 'pipeline_complete', state };
           return;
         }
       } catch (err: any) {
+        markStepFinished('clinical-documentation');
         const safeMsg = err.message?.includes('timed out')
           ? err.message
           : 'Clinical documentation step encountered an internal error';
         state.errors.push({ step: 'clinical-documentation', error: safeMsg, timestamp: new Date() });
         state.status = 'failed';
         state.completedAt = new Date();
+        state.runningSteps = [];
+        state.currentStep = undefined;
         pipelineStore.set(pipelineId, state);
         yield { event: 'step_failed', step: 'clinical-documentation', error: safeMsg };
         yield { event: 'pipeline_complete', state };
@@ -393,14 +452,19 @@ export class AgentOrchestrator {
     ).filter((s) => stepsToRun.includes(s));
 
     if (phase2Steps.length > 0) {
+      throwIfAborted();
       console.log(`\n─── Phase 2 (parallel): ${phase2Steps.join(' | ')} ──────────`);
-      for (const step of phase2Steps) yield { event: 'step_start', step };
+      for (const step of phase2Steps) {
+        markStepStarted(step);
+        yield { event: 'step_start', step };
+      }
 
       const phase2Results = await Promise.allSettled(phase2Steps.map(runStep));
 
       for (let i = 0; i < phase2Steps.length; i++) {
         const step = phase2Steps[i];
         const settled = phase2Results[i];
+        markStepFinished(step);
 
         if (settled.status === 'fulfilled') {
           recordStep(step, settled.value);
@@ -452,14 +516,19 @@ export class AgentOrchestrator {
     ).filter((s) => stepsToRun.includes(s));
 
     if (phase3Steps.length > 0) {
+      throwIfAborted();
       console.log(`\n─── Phase 3 (parallel): ${phase3Steps.join(' | ')} ──────────`);
-      for (const step of phase3Steps) yield { event: 'step_start', step };
+      for (const step of phase3Steps) {
+        markStepStarted(step);
+        yield { event: 'step_start', step };
+      }
 
       const phase3Results = await Promise.allSettled(phase3Steps.map(runStep));
 
       for (let i = 0; i < phase3Steps.length; i++) {
         const step = phase3Steps[i];
         const settled = phase3Results[i];
+        markStepFinished(step);
 
         if (settled.status === 'fulfilled') {
           recordStep(step, settled.value);
@@ -484,15 +553,27 @@ export class AgentOrchestrator {
     }
 
     // ── Finalize ─────────────────────────────────────────────────────────────
+    if (isAborted()) {
+      state.errors.push({
+        step: 'pipeline',
+        error: 'Pipeline cancelled by client disconnect',
+        timestamp: new Date(),
+      });
+      state.status = 'failed';
+    }
     state.completedAt = new Date();
     if (state.status !== 'failed') state.status = 'completed';
     state.currentStep = undefined;
+    state.runningSteps = [];
     pipelineStore.set(pipelineId, state);
 
     // Cache successful runs under the content-hash key so identical re-runs
     // are served instantly without a Bedrock round-trip.
     if (state.status === 'completed') {
-      pipelineStore.set(cacheKey, state);
+      pipelineResultCache.set(cacheKey, {
+        state,
+        cachedAt: Date.now(),
+      });
     }
 
     const duration = state.completedAt.getTime() - state.startedAt.getTime();

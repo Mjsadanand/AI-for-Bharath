@@ -127,6 +127,8 @@ export interface PipelineState {
   startedAt: Date;
   completedAt?: Date;
   currentStep?: string;
+  /** Steps currently in-flight (used for parallel phase visibility). */
+  runningSteps?: AgentStepName[];
   status: 'running' | 'completed' | 'failed' | 'paused';
 }
 
@@ -135,6 +137,8 @@ export interface PipelineConfig {
   providerId: string;
   transcript: string;
   steps?: string[];  // Optional: run only specific agents
+  /** Optional cancellation signal (used by SSE disconnect handling). */
+  abortSignal?: AbortSignal;
 }
 
 export type AgentStepName =
@@ -177,3 +181,45 @@ export type PipelineStreamEvent =
   | { event: 'quality_warning'; step: AgentStepName; warning: string; avgConfidence: number }
   | { event: 'critical_alerts'; alerts: Array<{ type: string; message: string }> }
   | { event: 'pipeline_complete'; state: PipelineState };
+
+/**
+ * JSON-safe state shape emitted over SSE. Date objects are serialized to ISO strings.
+ */
+export type PipelineStateSse = Omit<PipelineState, 'startedAt' | 'completedAt' | 'errors' | 'stepResults' | 'transcript'> & {
+  startedAt: string;
+  completedAt?: string;
+  errors: Array<{ step: string; error: string; timestamp: string }>;
+  stepResults: Record<
+    string,
+    {
+      agentName: string;
+      success: boolean;
+      tokensUsed: { input: number; output: number };
+      durationMs: number;
+      error?: string;
+    }
+  >;
+};
+
+/**
+ * Wire payload emitted by the SSE endpoint.
+ */
+export type PipelineSseEvent =
+  | { event: 'pipeline_start'; pipelineId: string; steps: string[] }
+  | { event: 'cache_hit'; pipelineId: string; state: PipelineStateSse }
+  | { event: 'step_start'; step: AgentStepName }
+  | {
+      event: 'step_complete';
+      step: AgentStepName;
+      result: { success: boolean; tokensUsed: { input: number; output: number }; durationMs: number; error?: string };
+    }
+  | {
+      event: 'step_failed';
+      step: AgentStepName;
+      result?: { success: boolean; tokensUsed: { input: number; output: number }; durationMs: number; error?: string };
+      error?: string;
+    }
+  | { event: 'quality_warning'; step: AgentStepName; warning: string; avgConfidence: number }
+  | { event: 'critical_alerts'; alerts: Array<{ type: string; message: string }> }
+  | { event: 'pipeline_complete'; state: PipelineStateSse }
+  | { event: 'error'; message: string };

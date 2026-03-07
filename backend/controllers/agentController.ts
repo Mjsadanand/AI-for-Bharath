@@ -3,7 +3,7 @@
 // REST endpoints for running the CARENET AI agent pipeline and individual agents.
 //
 // Changes (2026-03):
-//   • streamAgentPipeline (GET /api/agents/pipeline/stream) — Server-Sent Events
+//   • streamAgentPipeline (POST /api/agents/pipeline/stream) — Server-Sent Events
 //     endpoint that wraps runPipelineStream(). The frontend receives live
 //     step_start / step_complete / critical_alerts / pipeline_complete events
 //     so judges see the pipeline working in real-time. Without this, the UI
@@ -18,8 +18,60 @@ import type { Request, Response } from 'express';
 import { orchestrator } from '../agents/core/Orchestrator.js';
 import { getAgentTelemetry } from '../agents/core/BedrockAgent.js';
 import { AGENT_STEP_ORDER } from '../agents/core/types.js';
-import type { AgentStepName, PipelineConfig } from '../agents/core/types.js';
+import type {
+  AgentStepName,
+  PipelineConfig,
+  PipelineSseEvent,
+  PipelineState,
+  PipelineStreamEvent,
+} from '../agents/core/types.js';
 import { handleControllerError } from '../middleware/errorHandler.js';
+
+function toPipelineStateSse(state: PipelineState) {
+  return {
+    pipelineId: state.pipelineId,
+    patientId: state.patientId,
+    providerId: state.providerId,
+    clinicalNoteId: state.clinicalNoteId,
+    riskAssessmentId: state.riskAssessmentId,
+    warnings: state.warnings ?? [],
+    criticalAlerts: state.criticalAlerts ?? [],
+    cacheKey: state.cacheKey,
+    startedAt: state.startedAt.toISOString(),
+    completedAt: state.completedAt?.toISOString(),
+    currentStep: state.currentStep,
+    runningSteps: state.runningSteps,
+    status: state.status,
+    errors: state.errors.map((e) => ({
+      step: e.step,
+      error: e.error,
+      timestamp: e.timestamp.toISOString(),
+    })),
+    // Keep per-step stream payload compact and free of full LLM outputs/tool traces.
+    stepResults: Object.fromEntries(
+      Object.entries(state.stepResults).map(([step, result]) => [
+        step,
+        {
+          agentName: result.agentName,
+          success: result.success,
+          tokensUsed: result.tokensUsed,
+          durationMs: result.durationMs,
+          error: result.error,
+        },
+      ]),
+    ),
+  };
+}
+
+function toSseEvent(event: PipelineStreamEvent): PipelineSseEvent {
+  if (event.event === 'cache_hit' || event.event === 'pipeline_complete') {
+    return {
+      ...event,
+      state: toPipelineStateSse(event.state),
+    };
+  }
+  return event;
+}
 
 // ── POST /api/agents/pipeline/run — Run the full 5-agent pipeline ───────────
 
@@ -177,6 +229,7 @@ export const getPipelineStatus = async (req: Request, res: Response) => {
         pipelineId: state.pipelineId,
         status: state.status,
         currentStep: state.currentStep,
+        runningSteps: state.runningSteps ?? [],
         completedSteps: Object.keys(state.stepResults),
         errors: state.errors,
         startedAt: state.startedAt,
@@ -223,19 +276,19 @@ export const listPipelines = async (_req: Request, res: Response) => {
   }
 };
 
-// ── GET /api/agents/pipeline/stream — Live SSE pipeline stream ──────────────
+// ── POST /api/agents/pipeline/stream — Live SSE pipeline stream ─────────────
 //
 // Why SSE instead of WebSocket:
 //   SSE is unidirectional (server→client), requires no handshake protocol,
-//   works through standard HTTP/2 multiplexing, and is trivially consumed in
-//   React with EventSource. The pipeline only needs to push events — no
+//   works through standard HTTP/2 multiplexing, and is trivially consumed by
+//   a fetch ReadableStream client. The pipeline only needs to push events — no
 //   bidirectional channel is required.
 //
 // Event types emitted: pipeline_start | cache_hit | step_start | step_complete
 //   | step_failed | quality_warning | critical_alerts | pipeline_complete
 //
-// The request body is sent as POST (the pipeline config), but SSE uses GET
-// by HTTP convention. We accept POST here so the transcript can be in the body.
+// We intentionally use POST so the pipeline config (including transcript) can
+// be sent in the request body.
 
 export const streamAgentPipeline = async (req: Request, res: Response) => {
   // ── SSE headers ────────────────────────────────────────────────────────────
@@ -250,6 +303,7 @@ export const streamAgentPipeline = async (req: Request, res: Response) => {
   }
 
   const sendEvent = (event: string, data: Record<string, any>) => {
+    if (res.writableEnded || req.aborted) return;
     // SSE format: "event: <name>\ndata: <json>\n\n"
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     // Flush each event immediately — Node's default HTTP buffering would
@@ -261,11 +315,17 @@ export const streamAgentPipeline = async (req: Request, res: Response) => {
 
   // Heartbeat every 15s to keep the connection alive through load balancers
   const heartbeat = setInterval(() => {
+    if (res.writableEnded || req.aborted) return;
     res.write(': heartbeat\n\n');
   }, 15_000);
 
-  // Clean up heartbeat if client disconnects early
-  req.on('close', () => clearInterval(heartbeat));
+  const abortController = new AbortController();
+
+  // Clean up heartbeat and abort in-flight orchestration if client disconnects.
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    abortController.abort();
+  });
 
   try {
     const { patientId, transcript, steps } = req.body;
@@ -282,13 +342,18 @@ export const streamAgentPipeline = async (req: Request, res: Response) => {
       providerId,
       transcript,
       steps: steps || undefined,
+      abortSignal: abortController.signal,
     };
 
     console.log(`\n📡 [SSE] Pipeline stream requested by provider ${providerId} for patient ${patientId}`);
 
     for await (const event of orchestrator.runPipelineStream(config)) {
+      if (req.aborted || res.writableEnded || abortController.signal.aborted) {
+        break;
+      }
       // Emit each pipeline event exactly as typed
-      sendEvent(event.event, event as any);
+      const sseEvent = toSseEvent(event);
+      sendEvent(sseEvent.event, sseEvent as unknown as Record<string, any>);
 
       // Terminate the stream after the final event
       if (event.event === 'pipeline_complete') {
@@ -297,10 +362,14 @@ export const streamAgentPipeline = async (req: Request, res: Response) => {
     }
   } catch (err: any) {
     console.error('[SSE] Pipeline stream error:', err);
-    sendEvent('error', { message: 'Pipeline execution failed' });
+    if (!abortController.signal.aborted) {
+      sendEvent('error', { message: 'Pipeline execution failed' });
+    }
   } finally {
     clearInterval(heartbeat);
-    res.end();
+    if (!res.writableEnded) {
+      res.end();
+    }
   }
 };
 
