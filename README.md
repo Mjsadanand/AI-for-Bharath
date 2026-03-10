@@ -5,7 +5,7 @@
 <h1 align="center">CARENET AI — Intelligent Healthcare Assistant Platform</h1>
 
 <p align="center">
-  A comprehensive, AI-powered healthcare management system delivering clinical documentation, predictive analytics, medical translation, research synthesis, and workflow automation — all within a unified, role-based platform.
+  A comprehensive, AI-powered healthcare management system with AWS Bedrock-powered agents for clinical documentation, risk prediction, medical translation, research synthesis, and workflow automation. Features a 5-agent pipeline that processes patient data through advanced AI models.
 </p>
 
 <p align="center">
@@ -13,8 +13,10 @@
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React" />
   <img src="https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white" alt="Express" />
   <img src="https://img.shields.io/badge/MongoDB-Mongoose%209-47A248?logo=mongodb&logoColor=white" alt="MongoDB" />
+  <img src="https://img.shields.io/badge/AWS-Bedrock-FF9900?logo=amazon&logoColor=white" alt="AWS Bedrock" />
   <img src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white" alt="Vite" />
   <img src="https://img.shields.io/badge/Tailwind%20CSS-4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Capacitor-8-119EFF?logo=capacitor&logoColor=white" alt="Capacitor" />
   <img src="https://img.shields.io/badge/License-ISC-green" alt="License" />
 </p>
 
@@ -23,139 +25,218 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Key Features](#key-features)
+- [🤖 AI-Powered Agent Pipeline](#-ai-powered-agent-pipeline-052run)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
-- [Getting Started](#getting-started)
+- [🚀 Getting Started](#-getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Environment Variables](#environment-variables)
   - [Running the Application](#running-the-application)
-- [Project Structure](#project-structure)
-- [API Reference](#api-reference)
-  - [Authentication](#authentication)
-  - [Patients](#patients)
-  - [Clinical Documentation](#clinical-documentation)
-  - [Medical Translator](#medical-translator)
-  - [Predictive Analytics](#predictive-analytics)
-  - [Research](#research)
-  - [Workflow Management](#workflow-management)
-  - [Dashboard](#dashboard)
-- [User Roles & Permissions](#user-roles--permissions)
-- [Data Models](#data-models)
-- [Frontend Pages](#frontend-pages)
-- [Security](#security)
-- [Contributing](#contributing)
-- [License](#license)
+- [📁 Project Structure](#-project-structure)
+- [🌐 API Reference](#-api-reference)
+- [🗃️ Database Models & Relationships](#️-database-models--relationships)
+- [📱 Frontend Pages & Mobile Support](#-frontend-pages--mobile-support)
+- [👥 User Roles & Permissions](#-user-roles--permissions-rbac)
+- [🔒 Security & Compliance](#-security--compliance-features)
+- [🚀 Deployment & Production](#-deployment--production)
+- [🚀 Scripts & Development](#-scripts--development-commands)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
 
 ---
 
 ## Overview
 
-**CARENET AI** is a full-stack healthcare assistant platform designed to streamline clinical workflows, enhance patient care, and support medical research through intelligent automation. The system serves four distinct user roles — **Doctors**, **Patients**, **Researchers**, and **Administrators** — each with a tailored dashboard and feature set.
+**CARENET AI** is an intelligent healthcare assistant platform powered by a sophisticated **5-agent AI pipeline** using AWS Bedrock Nova models. The system streamlines clinical workflows, enhances patient care, and supports medical research through advanced automation and AI-driven insights.
 
-The platform integrates AI-driven capabilities including natural language processing for clinical documentation, predictive risk scoring, medical terminology translation for patient comprehension, and evidence-based research synthesis.
+Serving four distinct user roles — **Doctors**, **Patients**, **Researchers**, and **Administrators** — each with tailored dashboards and feature sets, the platform integrates cutting-edge AI capabilities including:
+
+- **AWS Bedrock Nova AI Models** with multi-model fallback (Premier → Pro → Lite)
+- **Voice Transcription** via Groq Whisper API with live recording support
+- **5-Agent Sequential Pipeline** processing patient data through clinical → translation → prediction → research → workflow automation
+- **Smart Caching** with SHA-256 keys to prevent duplicate processing costs
+- **Mobile Support** via Capacitor with native iOS/Android capabilities
+- **Real-time Pipeline Monitoring** with Server-Sent Events (SSE)
 
 ---
 
 ## Key Features
 
-### 🩺 AI-Powered Clinical Documentation
-- Generate structured clinical notes from free-text transcripts
-- Automated extraction of medical entities (symptoms, diagnoses, medications, procedures, lab tests) with confidence scoring
-- Support for multiple note types: progress notes, initial consultations, follow-ups, discharge summaries, and procedure notes
-- Built-in verification workflow (pending → verified / rejected / amended)
+## 🤖 AI-Powered Agent Pipeline ($0.52/run)
 
-### 📊 Predictive Risk Analytics
-- Multi-category risk assessment (Cardiovascular, Metabolic, Respiratory)
-- Risk scoring based on chronic conditions, vital signs, and BMI calculations
-- Evidence-based recommendations citing AHA, ADA, and WHO guidelines
-- Predictive modeling with probability estimates and timeframes
-- Real-time alert system with critical/warning levels and acknowledgment tracking
+The core innovation of CARENET AI is its **5-agent sequential pipeline** powered by AWS Bedrock Nova models:
 
-### 🌐 Medical Report Translator
-- Converts clinical terminology into patient-friendly language using a 30+ term medical dictionary
-- Interactive Q&A engine for patient questions about conditions, medications, diet, and exercise
-- Auto-generated medication guides with purpose, instructions, side effects, and warnings
-- Risk warnings and lifestyle recommendation generation
+| Agent | Purpose | Cost | Key Features |
+|-------|---------|------|-------------|
+| **Clinical Documentation** | Transcript → structured SOAP notes | $0.047 | Entity extraction, confidence scoring, verification workflow |
+| **Medical Translator** | Clinical → patient-friendly language | $0.053 | 30+ term dictionary, Q&A engine, medication guides |
+| **Predictive Analytics** | Risk scoring & health predictions | $0.081 | Multi-category assessment, evidence-based recommendations |
+| **Research Synthesis** | Literature search & evidence analysis | $0.151 | Full-text search, trend analysis, contradiction detection |
+| **Workflow Automation** | Auto-create tasks & appointments | $0.186 | Insurance claims, lab orders, scheduling automation |
+| **Full Pipeline** | All 5 agents in sequence | **$0.52** | Parallel execution phases, ~3min runtime |
 
-### 🔬 Research Synthesis Engine
-- Full-text search across research papers with category filtering (Cardiology, Neurology, Oncology, etc.)
-- Evidence comparison across multiple papers with common findings and contradictions analysis
-- Trend analysis with growth percentages across research topics
-- Save/bookmark functionality for papers of interest
+### 🎤 Voice & Transcription
+- **Live Recording** + pre-recorded file upload support
+- **Groq Whisper API** integration (240 min/day free tier)
+- **Real-time Processing** with progress tracking via SSE
 
-### ⚙️ Workflow Automation
-- **Appointment Management** — Scheduling with conflict detection, status tracking, and priority levels
-- **Insurance Claims** — End-to-end lifecycle (draft → submitted → processing → approved/denied/appealed) with internal audit trails
-- **Lab Results** — Full lifecycle management with reference ranges, abnormal flagging, and review tracking
+### 🧠 Multi-Model AI Reliability
+- **Primary**: `us.amazon.nova-premier-v1:0` (highest quality)
+- **Fallback 1**: `us.amazon.nova-pro-v1:0` (higher throughput)
+- **Fallback 2**: `us.amazon.nova-lite-v1:0` (budget-friendly at $0.30/pipeline)
 
-### 📈 Role-Based Dashboards
-- **Doctor** — Today's schedule, patient count, pending notes, active risk alerts, quick actions
-- **Patient** — Health score, upcoming appointments, lab results, medications, risk assessment visualization
-- **Admin** — System-wide metrics (users, patients, notes, alerts, claims, labs), quick management actions
-- **Researcher** — Paper statistics, trending topics, quick access to research and analytics
+### 📱 Cross-Platform Mobile Support
+**Capacitor 8** with native capabilities:
+- Camera, Geolocation, Push Notifications
+- Haptic Feedback, Network Detection, Clipboard
+- File System Access, Device Info
+- Native iOS/Android deployment ready
+
+### 🔄 Smart Caching & Cost Optimization
+- **SHA-256 Cache Keys** (patientId + transcript)
+- **1-hour TTL** prevents duplicate $0.52 charges during demos
+- **50% cost reduction** in demo/testing scenarios
+- **Automatic eviction** after 24 hours
+
+### 🏥 Clinical Workflow Features
+- **SOAP Note Generation** with entity extraction & confidence scoring
+- **Multi-Category Risk Assessment** (Cardiovascular, Metabolic, Respiratory)
+- **Evidence-Based Recommendations** citing AHA/ADA/WHO guidelines
+- **Critical Alert System** with acknowledgment tracking
+- **Appointment Scheduling** with conflict detection
+- **Insurance Claim Lifecycle** management with audit trails
+- **Lab Result Tracking** with abnormal value flagging
+
+### 📊 Role-Based Dashboards
+- **Doctor** — Patient overview, schedules, pending notes, active alerts, quick actions
+- **Patient** — Health scores, vitals tracking, appointments, risk visualization
+- **Admin** — System-wide metrics, user management, platform analytics
+- **Researcher** — Paper trends, evidence synthesis, bookmark collections
 
 ---
 
 ## Tech Stack
 
-| Layer          | Technology                                                                              |
-|----------------|----------------------------------------------------------------------------------------|
-| **Frontend**   | React 19, TypeScript 5.9, Vite 7, Tailwind CSS 4, React Router 7, Recharts, Lucide React |
-| **Backend**    | Node.js, Express 5, TypeScript 5.9, Mongoose 9                                        |
-| **Database**   | MongoDB                                                                                 |
-| **Auth**       | JSON Web Tokens (JWT), bcryptjs                                                         |
-| **HTTP Client**| Axios with interceptors                                                                 |
-| **UI/UX**      | Headless UI, React Hot Toast, Google Fonts (Inter)                                     |
-| **Dev Tools**  | ESLint, tsx (watch mode), Vite dev server with API proxy, React Compiler               |
+### Backend Infrastructure
+| Technology | Version | Purpose |
+|------------|---------|----------|
+| **Node.js + Express** | Express 5.2.1 | REST API server with advanced middleware |
+| **TypeScript** | 5.9 (ES2022) | Type safety with strict configuration |
+| **MongoDB + Mongoose** | 9.2.2 | NoSQL database with ODM and schema validation |
+| **AWS Bedrock** | Nova Premier/Pro/Lite | AI model inference with multi-model fallback |
+| **JWT + bcryptjs** | - | Authentication with 12-round salt hashing |
+| **Groq Whisper** | - | Voice transcription API (240 min/day free) |
+| **Google OAuth 2.0** | - | Social authentication with profile completion |
+| **Security Stack** | Helmet, Rate Limiting, NoSQL Sanitization | Production-ready security hardening |
+
+### Frontend & Mobile
+| Technology | Version | Purpose |
+|------------|---------|----------|
+| **React** | 19 | UI framework with latest features |
+| **Vite** | 7.3.1 | Build tool with HMR and optimizations |
+| **Tailwind CSS** | 4 | Utility-first styling with custom plugin |
+| **React Router** | 7 | Client-side routing with data loading |
+| **Capacitor** | 8 | Native iOS/Android deployment |
+| **Framer Motion** | 12.34.3 | Advanced animations and transitions |
+| **Recharts** | 3.7.0 | Data visualization and analytics charts |
+| **Headless UI** | 2.0 | Accessible, unstyled UI components |
+| **Axios** | 1.13.5 | HTTP client with interceptors |
+
+### Development & DevOps
+| Tool | Purpose |
+|------|----------|
+| **tsx** | TypeScript execution in development |
+| **Docker** | Multi-stage containerization |
+| **ESLint** | Code quality and consistency |
+| **Zod** | Runtime type validation |
+| **Multer** | File upload handling |
+| **CORS** | Cross-origin request management |
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         CARENET AI Platform                         │
-├─────────────────────────┬───────────────────────────────────────────┤
-│      Frontend (React)   │           Backend (Express)               │
-│                         │                                           │
-│  ┌───────────────────┐  │  ┌─────────────┐  ┌──────────────────┐   │
-│  │  Auth Context      │  │  │  Middleware  │  │   Controllers    │   │
-│  │  (JWT + localStorage│  │  │  ┌────────┐ │  │  ┌────────────┐ │   │
-│  │   carenet_token)   │  │  │  │  Auth   │ │  │  │  Auth      │ │   │
-│  └───────┬───────────┘  │  │  │  (JWT)   │ │  │  │  Patient   │ │   │
-│          │              │  │  ├────────┤ │  │  │  Clinical  │ │   │
-│  ┌───────▼───────────┐  │  │  │  Audit  │ │  │  │  Translator│ │   │
-│  │  Axios Instance    │──┼──│  │  Logger │ │  │  │  Predictive│ │   │
-│  │  (Bearer Token +   │  │  │  └────────┘ │  │  │  Research  │ │   │
-│  │   401 Interceptor) │  │  └─────────────┘  │  │  Workflow  │ │   │
-│  └───────┬───────────┘  │                    │  │  Dashboard │ │   │
-│          │              │                    │  └────────────┘ │   │
-│  ┌───────▼───────────┐  │  ┌─────────────┐  └────────┬─────────┘   │
-│  │  Pages (Role-Based)│  │  │   Routes    │──────────┘             │
-│  │  • Doctor Dashboard│  │  │  /api/auth  │                        │
-│  │  • Patient Dashboard│ │  │  /api/patients│  ┌──────────────┐    │
-│  │  • Admin Dashboard  │ │  │  /api/clinical│  │   MongoDB    │    │
-│  │  • Researcher Dash. │ │  │  /api/translator│ │  (Mongoose)  │    │
-│  │  • Clinical Docs   │  │  │  /api/predictive│ │  9 Models    │    │
-│  │  • Translator      │  │  │  /api/research │ └──────────────┘    │
-│  │  • Predictive      │  │  │  /api/workflow │                     │
-│  │  • Research        │  │  │  /api/dashboard│                     │
-│  │  • Workflow        │  │  └─────────────┘                        │
-│  └───────────────────┘  │                                           │
-└─────────────────────────┴───────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "Frontend (React 19 + Capacitor)"
+        UI["🎨 UI Layer
+        • React Router 7
+        • Tailwind CSS 4
+        • Framer Motion"]
+        Auth["🔐 Auth Context
+        • JWT + localStorage
+        • Google OAuth"]
+        Mobile["📱 Mobile Layer
+        • Capacitor 8
+        • iOS/Android"]
+    end
+    
+    subgraph "Backend (Express 5 + TypeScript)"
+        API["🌐 API Gateway
+        • 11 Route Groups
+        • Rate Limiting
+        • CORS Security"]
+        Pipeline["🤖 AI Pipeline
+        • 5 Bedrock Agents
+        • SHA-256 Caching
+        • SSE Streaming"]
+        Auth2["🛡️ Auth Middleware
+        • JWT Verification
+        • Role Authorization"]
+    end
+    
+    subgraph "AI Services"
+        Bedrock["☁️ AWS Bedrock
+        • Nova Premier/Pro/Lite
+        • Multi-model Fallback
+        • $0.52/pipeline"]
+        Groq["🎤 Groq Whisper
+        • Voice Transcription
+        • 240 min/day free"]
+    end
+    
+    subgraph "Data Layer"
+        MongoDB["🗃️ MongoDB
+        • 9 Models
+        • Mongoose ODM
+        • Audit Logging"]
+        Cache["⚡ Memory Cache
+        • Pipeline Results
+        • 1hr TTL
+        • Cost Optimization"]
+    end
+    
+    UI --> Auth
+    UI --> API
+    Auth --> Auth2
+    API --> Pipeline
+    API --> MongoDB
+    Pipeline --> Bedrock
+    Pipeline --> Groq
+    Pipeline --> Cache
+    Mobile --> API
+    
+    classDef ai fill:#ff6b6b,stroke:#fff,color:#fff
+    classDef data fill:#4ecdc4,stroke:#fff,color:#fff
+    classDef compute fill:#45b7d1,stroke:#fff,color:#fff
+    
+    class Bedrock,Groq,Pipeline ai
+    class MongoDB,Cache data
+    class API,Auth2,UI,Auth,Mobile compute
 ```
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- **Node.js** ≥ 18.x
+- **Node.js** ≥ 20.x (required for latest dependencies)
 - **npm** ≥ 9.x (or yarn/pnpm)
 - **MongoDB** ≥ 6.x (local instance or MongoDB Atlas)
+- **AWS Account** (for Bedrock AI pipeline)
+- **Groq Account** (optional - for voice transcription)
 
 ### Installation
 
@@ -171,6 +252,10 @@ npm install
 # Install frontend dependencies
 cd ../frontend
 npm install
+
+# Create environment file
+cd ../backend
+cp .env.example .env  # Then edit with your credentials
 ```
 
 ### Environment Variables
@@ -178,19 +263,37 @@ npm install
 Create a `.env` file in the `backend/` directory:
 
 ```env
-# Server
+# Core Configuration
 PORT=5000
 NODE_ENV=development
+CLIENT_URL=http://localhost:5173
 
 # Database
 MONGO_URI=mongodb://localhost:27017/carenet
+# Or for MongoDB Atlas:
+# MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/carenet
 
 # Authentication
-JWT_SECRET=your-secure-jwt-secret-key
+JWT_SECRET=your-super-secure-jwt-secret-key-at-least-32-chars-long
 
-# Frontend URL (for CORS)
-CLIENT_URL=http://localhost:5173
+# AWS Bedrock (Required for AI Pipeline)
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+
+# Google OAuth (Optional - for social login)
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Voice Transcription (Optional - for voice features)
+GROQ_API_KEY=your-groq-api-key
 ```
+
+⚠️ **Production Notes:**
+- `JWT_SECRET` must be at least 32 characters for security
+- AWS credentials are required for the AI pipeline to function
+- Without Groq API key, voice transcription features will be disabled
+- Google OAuth enables "Sign in with Google" functionality
 
 ### Running the Application
 
@@ -208,6 +311,22 @@ npm run dev
 
 The frontend runs at `http://localhost:5173` and proxies API requests to the backend at `http://localhost:5000`.
 
+**Mobile Development (Optional):**
+
+```bash
+# Build web app first
+cd frontend
+npm run build
+
+# iOS Development
+npx cap add ios
+npx cap open ios
+
+# Android Development  
+npx cap add android
+npx cap open android
+```
+
 **Production Build:**
 
 ```bash
@@ -224,180 +343,268 @@ cd backend
 npm start            # Runs node dist/index.js
 ```
 
+**Docker Deployment:**
+
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Or manual Docker build
+cd backend
+docker build -t carenet-backend .
+docker run -p 5000:5000 --env-file .env carenet-backend
+```
+
+### Health Check
+
+Verify the backend is running:
+```bash
+curl http://localhost:5000/api/health
+# Response: {"status":"ok","service":"CARENET AI Backend","timestamp":"..."}
+```
+
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 carenet-ai/
-├── backend/
-│   ├── index.ts                    # Express app entry point
-│   ├── package.json                # Backend dependencies & scripts
-│   ├── tsconfig.json               # TypeScript configuration (ES2022, strict)
+├── backend/                        # Express.js Backend
+│   ├── index.ts                    # App entry + middleware setup
+│   ├── package.json                # Dependencies & scripts
+│   ├── tsconfig.json               # TypeScript config (ES2022, strict)
+│   ├── Dockerfile                  # Multi-stage container build
+│   ├── agents/                     # 🤖 AI Agent Implementations
+│   │   ├── core/
+│   │   │   ├── BedrockAgent.ts         # AWS Bedrock base class
+│   │   │   ├── Orchestrator.ts         # Pipeline coordinator
+│   │   │   └── types.ts                # Agent interfaces
+│   │   ├── clinical/ClinicalDocAgent.ts    # SOAP note generation
+│   │   ├── translator/TranslatorAgent.ts   # Medical translation
+│   │   ├── predictive/PredictiveAgent.ts   # Risk assessment 
+│   │   ├── research/ResearchAgent.ts       # Literature synthesis
+│   │   ├── workflow/WorkflowAgent.ts       # Task automation
+│   │   └── patient/PatientReportAgent.ts   # Patient summaries
 │   ├── config/
-│   │   └── db.ts                   # MongoDB connection via Mongoose
-│   ├── controllers/
-│   │   ├── authController.ts       # Registration, login, profile management
-│   │   ├── patientController.ts    # Patient CRUD, vitals, medications
-│   │   ├── clinicalDocController.ts# Clinical notes, transcript processing, entity extraction
-│   │   ├── translatorController.ts # Medical-to-patient translation, Q&A, medication guides
-│   │   ├── predictiveController.ts # Risk assessment, scoring, alerts, recommendations
-│   │   ├── researchController.ts   # Paper search, trends, evidence comparison
-│   │   ├── workflowController.ts   # Appointments, insurance claims, lab results
-│   │   └── dashboardController.ts  # Role-specific dashboard data aggregation
+│   │   ├── db.ts                   # MongoDB connection
+│   │   └── validateEnv.ts          # Environment validation  
+│   ├── controllers/                # 🎮 Route Handlers (12 files)
+│   │   ├── authController.ts       # Registration, login, profile
+│   │   ├── agentController.ts      # Agent telemetry & health
+│   │   ├── pipelineController.ts   # Full agent pipeline
+│   │   ├── patientController.ts    # Patient CRUD, vitals, meds
+│   │   ├── clinicalDocController.ts # Clinical notes + transcripts
+│   │   ├── translatorController.ts  # Medical translation API
+│   │   ├── predictiveController.ts  # Risk scoring + alerts
+│   │   ├── researchController.ts    # Paper search + trends
+│   │   ├── workflowController.ts    # Appointments, claims, labs
+│   │   ├── dashboardController.ts   # Role-specific dashboards
+│   │   ├── googleAuthController.ts  # OAuth endpoints
+│   │   └── transcriptionController.ts # Voice processing
 │   ├── middleware/
-│   │   ├── auth.ts                 # JWT authentication & role-based authorization
-│   │   └── auditLogger.ts         # Request audit logging (user, IP, action, module)
-│   ├── models/
-│   │   ├── User.ts                 # User accounts with bcrypt password hashing
-│   │   ├── Patient.ts              # Comprehensive patient profiles (vitals, meds, history)
-│   │   ├── Appointment.ts          # Scheduling with conflict detection & priority
-│   │   ├── AuditLog.ts             # Audit trail entries
-│   │   ├── ClinicalNote.ts         # Clinical documentation with AI entity extraction
-│   │   ├── InsuranceClaim.ts       # Claims lifecycle with internal audit trail
-│   │   ├── LabResult.ts            # Lab tests with reference ranges & review tracking
-│   │   ├── ResearchPaper.ts        # Research papers with full-text search index
-│   │   └── RiskAssessment.ts       # Multi-category risk scoring & predictions
-│   └── routes/
-│       ├── authRoutes.ts           # /api/auth/*
-│       ├── patientRoutes.ts        # /api/patients/*
-│       ├── clinicalDocRoutes.ts    # /api/clinical-docs/*
-│       ├── translatorRoutes.ts     # /api/translator/*
-│       ├── predictiveRoutes.ts     # /api/predictive/*
-│       ├── researchRoutes.ts       # /api/research/*
-│       ├── workflowRoutes.ts       # /api/workflow/*
-│       └── dashboardRoutes.ts      # /api/dashboard/*
+│   │   ├── auth.ts                 # JWT + role authorization
+│   │   ├── auditLogger.ts         # Request audit trails
+│   │   ├── errorHandler.ts        # Global error handling
+│   │   ├── security.ts            # Security headers
+│   │   └── validation.ts          # Input validation
+│   ├── models/                     # 🗃️ Database Models (9 models)
+│   │   ├── User.ts                 # Auth + user profiles
+│   │   ├── Patient.ts              # Medical profiles + vitals
+│   │   ├── ClinicalNote.ts         # SOAP notes + entities
+│   │   ├── RiskAssessment.ts       # AI risk predictions
+│   │   ├── Appointment.ts          # Scheduling + conflicts
+│   │   ├── InsuranceClaim.ts       # Claims lifecycle
+│   │   ├── LabResult.ts            # Lab tests + results
+│   │   ├── ResearchPaper.ts        # Literature database
+│   │   └── AuditLog.ts             # System audit trail
+│   ├── routes/                     # 🗺️ API Route Definitions (11 groups)
+│   │   ├── authRoutes.ts           # /api/auth/*
+│   │   ├── agentRoutes.ts          # /api/agents/*
+│   │   ├── pipelineRoutes.ts       # /api/pipeline/*
+│   │   ├── patientRoutes.ts        # /api/patients/*
+│   │   ├── clinicalDocRoutes.ts    # /api/clinical-docs/*
+│   │   ├── translatorRoutes.ts     # /api/translator/*
+│   │   ├── predictiveRoutes.ts     # /api/predictive/*
+│   │   ├── researchRoutes.ts       # /api/research/*
+│   │   ├── workflowRoutes.ts       # /api/workflow/*
+│   │   └── dashboardRoutes.ts      # /api/dashboard/*
+│   └── scripts/                    # 🔧 Utility Scripts
+│       ├── testAgent.ts            # Single agent testing
+│       ├── testAllAgents.ts        # Full pipeline testing
+│       ├── testBedrock.ts          # AWS connectivity test
+│       └── backfillPatientCodes.ts # Data migration
 │
-├── frontend/
-│   ├── index.html                  # HTML entry with Inter font
-│   ├── package.json                # Frontend dependencies & scripts
-│   ├── vite.config.ts              # Vite + React Compiler + Tailwind + API proxy
-│   ├── tsconfig.json               # TypeScript project references
-│   ├── eslint.config.js            # ESLint configuration
-│   └── src/
-│       ├── main.tsx                # React entry (BrowserRouter + AuthProvider + Toaster)
-│       ├── App.tsx                 # Route definitions with role-based guards
-│       ├── index.css               # Global styles
-│       ├── components/
-│       │   ├── layout/
-│       │   │   ├── DashboardLayout.tsx  # Responsive sidebar + top bar shell
-│       │   │   └── ProtectedRoute.tsx   # Auth & role-based route guard
-│       │   └── ui/
-│       │       └── Cards.tsx           # StatCard, Card, Badge, EmptyState, LoadingSpinner
-│       ├── contexts/
-│       │   └── AuthContext.tsx     # Auth state management (JWT + localStorage)
-│       ├── hooks/
-│       │   └── useAuth.ts         # Auth context consumer hook
-│       ├── lib/
-│       │   └── api.ts             # Axios instance with token & 401 interceptors
-│       ├── pages/
-│       │   ├── auth/              # LoginPage, RegisterPage
-│       │   ├── dashboard/         # DashboardPage, Doctor/Patient/Admin/Researcher dashboards
-│       │   ├── patients/          # PatientsPage (list + detail view)
-│       │   ├── clinical/          # ClinicalDocsPage (notes + transcript processing)
-│       │   ├── translator/        # TranslatorPage (translate, Q&A, medication guide)
-│       │   ├── predictive/        # PredictivePage (risk assessments + alerts)
-│       │   ├── research/          # ResearchPage (paper search + trends)
-│       │   └── workflow/          # WorkflowPage (appointments, claims, labs)
-│       └── types/
-│           └── index.ts           # Shared TypeScript interfaces
-│
-└── README.md
+└── frontend/                       # React + Capacitor Frontend
+    ├── index.html                  # HTML entry with Inter font
+    ├── package.json                # Frontend dependencies
+    ├── vite.config.ts              # Build + proxy config
+    ├── capacitor.config.ts         # Mobile deployment config
+    ├── eslint.config.js            # Code quality rules
+    ├── android/                    # Android build files
+    ├── ios/                        # iOS build files
+    └── src/
+        ├── main.tsx                # React entry + providers
+        ├── App.tsx                 # Routing + auth guards
+        ├── index.css               # Global styles
+        ├── components/              # 🧩 UI Components
+        │   ├── layout/
+        │   │   ├── DashboardLayout.tsx  # Sidebar + topbar shell
+        │   │   └── ProtectedRoute.tsx   # Auth + role guards
+        │   └── ui/
+        │       └── Cards.tsx           # Reusable card components
+        ├── contexts/
+        │   └── AuthContext.tsx     # Global auth state
+        ├── hooks/
+        │   └── useAuth.ts         # Auth context hook
+        ├── lib/
+        │   └── api.ts             # Axios + interceptors
+        ├── pages/                   # 📱 Application Pages (12 groups)
+        │   ├── auth/              # LoginPage, RegisterPage
+        │   ├── dashboard/         # Role-specific dashboards
+        │   ├── agents/            # Agent monitoring
+        │   ├── pipeline/          # Pipeline execution UI
+        │   ├── patients/          # Patient list + profiles
+        │   ├── clinical/          # Clinical documentation
+        │   ├── translator/        # Medical translation
+        │   ├── predictive/        # Risk assessment
+        │   ├── research/          # Paper search + trends
+        │   ├── workflow/          # Appointments + claims
+        │   └── landing/           # Marketing page
+        └── types/
+            └── index.ts           # Shared TypeScript types
+```
 ```
 
 ---
 
-## API Reference
+## 🌐 API Reference
+
+> All routes prefixed with `/api`. Protected routes require `Authorization: Bearer <token>`.
 
 Base URL: `http://localhost:5000/api`
-
 Health Check: `GET /api/health` → `{ status: "ok", service: "CARENET AI Backend", timestamp }`
 
-### Authentication
+### 🤖 Agent Pipeline — `/api/pipeline`
 
-| Method | Endpoint           | Auth | Description                      |
-|--------|--------------------|------|----------------------------------|
-| POST   | `/auth/register`   | No   | Register a new user account      |
-| POST   | `/auth/login`      | No   | Authenticate and receive JWT     |
-| GET    | `/auth/me`         | Yes  | Get current user profile         |
-| PUT    | `/auth/profile`    | Yes  | Update current user profile      |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| **POST** | `/run/:patientId` | doctor, admin | **Trigger full 5-agent pipeline** (🔥 $0.52 cost) |
+| **GET** | `/status/:patientId` | doctor, admin | Real-time pipeline execution status |
+| **GET** | `/stream/:patientId` | doctor, admin | Server-Sent Events stream for progress |
+| **GET** | `/cache/stats` | admin | Pipeline cache statistics |
+| **DELETE** | `/cache/:patientId` | admin | Clear specific patient cache |
 
-**Register Request Body:**
+💰 **Pipeline Cost Breakdown:**
+- Clinical Documentation: $0.047
+- Medical Translation: $0.053  
+- Predictive Analytics: $0.081
+- Research Synthesis: $0.151
+- Workflow Automation: $0.186
+- **Total: $0.518/execution**
+
+### 🔐 Authentication — `/api/auth`
+
+| Method | Endpoint | Auth | Description |
+|--------|---------|----- |-------------|
+| POST | `/register` | Public | Register new user (auto-creates Patient profile if role=patient) |
+| POST | `/login` | Public | Authenticate and receive JWT (30-day expiration) |
+| POST | `/google` | Public | Google OAuth authentication |
+| GET | `/me` | Protected | Get current user + patient profile |
+| PUT | `/profile` | Protected | Update user profile |
+| POST | `/role-selection` | Protected | Complete profile after OAuth signup |
+
+**Register Request Example:**
 ```json
 {
-  "name": "Dr. Jane Smith",
-  "email": "jane@hospital.com",
-  "password": "securepassword",
+  "name": "Dr. Sarah Johnson",
+  "email": "sarah@hospital.com",
+  "password": "SecurePass123",
   "role": "doctor",
   "specialization": "Cardiology",
-  "licenseNumber": "MD-12345"
+  "licenseNumber": "MD-67890"
 }
 ```
 
-**Login Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "user": { "_id": "...", "name": "Dr. Jane Smith", "role": "doctor", ... },
-    "token": "eyJhbGciOiJIUzI1NiIs..."
-  }
-}
-```
+### 🥼 Patients — `/api/patients`
 
-### Patients
+| Method | Endpoint | Roles | Description |
+|--------|----------|-------|-------------|
+| GET | `/me/profile` | patient | Get own patient profile |
+| GET | `/` | doctor, admin | List all patients (searchable, role-scoped) |
+| GET | `/:id` | doctor, admin | Get patient by ID |
+| PUT | `/:id` | doctor, admin | Update patient record |
+| POST | `/:id/vitals` | doctor, admin | Add vital signs entry |
+| POST | `/:id/medications` | doctor | Add medication to patient |
 
-| Method | Endpoint                    | Auth         | Description                     |
-|--------|-----------------------------|--------------|---------------------------------|
-| GET    | `/patients`                 | Doctor/Admin | List all patients (paginated, searchable) |
-| GET    | `/patients/me/profile`      | Any          | Get own patient profile         |
-| GET    | `/patients/:id`             | Doctor/Admin | Get patient by ID               |
-| PUT    | `/patients/:id`             | Doctor/Admin | Update patient record           |
-| POST   | `/patients/:id/vitals`      | Doctor/Admin | Add vital signs entry           |
-| POST   | `/patients/:id/medications` | Doctor       | Add medication to patient       |
+### 📝 Clinical Documentation — `/api/clinical-docs`
 
-### Clinical Documentation
+| Method | Endpoint | Auth | Description |
+|--------|---------|----- |-------------|
+| **POST** | `/` | doctor | **Create new clinical note** |
+| **POST** | `/process-transcript` | doctor | **Convert voice transcript → structured SOAP note** |
+| GET | `/` | Any | List clinical notes (paginated, role-scoped) |
+| GET | `/:id` | Any | Get clinical note by ID |
+| GET | `/patient/:patientId` | Any | Get notes for specific patient |
+| PUT | `/:id/verify` | doctor | Verify, reject, or amend a note |
 
-| Method | Endpoint                          | Auth         | Description                          |
-|--------|-----------------------------------|--------------|--------------------------------------|
-| POST   | `/clinical-docs`                  | Doctor       | Create a new clinical note           |
-| GET    | `/clinical-docs`                  | Any          | List clinical notes (paginated)      |
-| GET    | `/clinical-docs/:id`              | Any          | Get clinical note by ID              |
-| POST   | `/clinical-docs/process-transcript`| Doctor      | Generate structured note from transcript |
-| GET    | `/clinical-docs/patient/:patientId`| Any         | Get notes for specific patient       |
-| PUT    | `/clinical-docs/:id/verify`       | Doctor       | Verify, reject, or amend a note      |
+### 🌐 Medical Translator — `/api/translator`
 
-### Medical Translator
+| Method | Endpoint | Description |
+|--------|---------|--------------|
+| **POST** | `/translate` | **Translate clinical report to patient-friendly language** (30+ term dictionary) |
+| **POST** | `/ask` | **Medical Q&A engine** for patient questions |
+| **POST** | `/medication-instructions` | **Generate medication guide** with dosing, side effects, warnings |
 
-| Method | Endpoint                            | Auth | Description                             |
-|--------|-------------------------------------|------|-----------------------------------------|
-| POST   | `/translator/translate`             | Any  | Translate clinical report to patient-friendly language |
-| POST   | `/translator/ask`                   | Any  | Ask a medical question                  |
-| POST   | `/translator/medication-instructions`| Any | Get medication guide with instructions   |
+### 📊 Predictive Analytics — `/api/predictive`
 
-### Predictive Analytics
+| Method | Endpoint | Roles | Description |
+|--------|---------|----- |--------------|
+| **POST** | `/assess/:patientId` | doctor, admin | **Run multi-category risk assessment** (Cardiovascular, Metabolic, Respiratory) |
+| GET | `/alerts` | doctor, admin | Get all active unacknowledged alerts |
+| GET | `/patient/:patientId` | Any | Get all assessments for patient |
+| GET | `/latest/:patientId` | Any | Get most recent risk assessment |
+| PUT | `/:assessmentId/alerts/:alertIndex/acknowledge` | doctor, admin | Acknowledge specific alert |
 
-| Method | Endpoint                                              | Auth         | Description                    |
-|--------|-------------------------------------------------------|--------------|--------------------------------|
-| POST   | `/predictive/assess/:patientId`                       | Doctor/Admin | Run risk assessment for patient|
-| GET    | `/predictive/alerts`                                  | Doctor/Admin | Get all active alerts          |
-| GET    | `/predictive/patient/:patientId`                      | Any          | Get patient assessments        |
-| GET    | `/predictive/latest/:patientId`                       | Any          | Get latest assessment          |
-| PUT    | `/predictive/:assessmentId/alerts/:alertIndex/acknowledge` | Doctor/Admin | Acknowledge an alert      |
+### 🔬 Research — `/api/research`
 
-### Research
+| Method | Endpoint | Description |
+|--------|---------|--------------|
+| **GET** | `/search` | **Search research papers** (full-text + category filters) |
+| **GET** | `/trends` | **Get trending medical research topics** with growth percentages |
+| **POST** | `/compare` | **Compare evidence across multiple papers** (common findings + contradictions) |
+| GET | `/paper/:id` | Get specific paper details |
+| POST | `/paper/:id/save` | Bookmark/unbookmark paper for user |
 
-| Method | Endpoint                  | Auth | Description                             |
-|--------|---------------------------|------|-----------------------------------------|
-| GET    | `/research/search`        | Any  | Search papers (query + category filter) |
-| GET    | `/research/trends`        | Any  | Get trending research topics            |
-| POST   | `/research/compare`       | Any  | Compare evidence across papers          |
-| GET    | `/research/paper/:id`     | Any  | Get paper details                       |
-| POST   | `/research/paper/:id/save`| Any  | Toggle save/bookmark on paper           |
+### ⚙️ Workflow Management — `/api/workflow`
 
-### Workflow Management
+| Method | Endpoint | Roles | Description |
+|--------|---------|----- |--------------|
+| **POST** | `/appointments` | Any | **Create appointment** with conflict detection |
+| GET | `/appointments` | Any | List appointments (role-scoped) |
+| PUT | `/appointments/:id` | Any | Update appointment status |
+| **POST** | `/claims` | doctor, admin | **Create insurance claim** with audit trail |
+| GET | `/claims` | doctor, admin | List claims with lifecycle status |
+| PUT | `/claims/:id` | doctor, admin | Update claim status (triggers audit) |
+| **POST** | `/labs` | doctor, admin | **Create lab result** with reference ranges |
+| GET | `/labs` | Any | View lab results (role-scoped) |
+| PUT | `/labs/:id` | doctor, admin | Update lab result (triggers review workflow) |
 
-| Method | Endpoint              | Auth         | Description                  |
+### 📡 Agent Telemetry — `/api/agents`
+
+| Method | Endpoint | Auth | Description |
+|--------|---------|----- |--------------|
+| GET | `/telemetry` | Any | Agent performance metrics (runs, success rate, latency, token usage) |
+| GET | `/health` | Any | Agent health status across all 5 agents |
+| POST | `/test/:agentType` | admin | Test individual agent functionality |
+
+### 📈 Dashboard — `/api/dashboard`
+
+| Method | Endpoint | Role | Dashboard Data Includes |
+|--------|---------|----- |--------------------------|
+| GET | `/doctor` | doctor | Patient count, appointments, pending notes, active alerts, quick actions |
+| GET | `/patient` | patient | Health score, vital trends, upcoming appointments, risk assessment |
+| GET | `/admin` | admin | System metrics, user counts, platform analytics, management tools |
+| GET | `/researcher` | researcher | Paper statistics, trending topics, bookmark collections |
 |--------|-----------------------|--------------|------------------------------|
 | POST   | `/workflow/appointments`| Any         | Create appointment           |
 | GET    | `/workflow/appointments`| Any         | List appointments (role-scoped)|
@@ -436,167 +643,768 @@ CARENET AI implements a comprehensive **Role-Based Access Control (RBAC)** syste
 
 ---
 
-## Data Models
+## 🗃️ Database Models & Relationships
 
-The application uses **9 Mongoose models** to structure healthcare data:
+CARENET AI uses **9 comprehensive Mongoose models** for healthcare data management:
 
-| Model              | Description                                                                                  |
-|--------------------|----------------------------------------------------------------------------------------------|
-| **User**           | User accounts with roles, bcrypt-hashed passwords (salt factor 12), and active status        |
-| **Patient**        | Comprehensive medical profiles — vitals, medications, allergies, chronic conditions, emergency contact, insurance, risk factors |
-| **Appointment**    | Scheduling with type (consultation/follow-up/emergency/checkup/procedure), priority levels, and compound indexes |
-| **ClinicalNote**   | Clinical documentation with AI-extracted entities, verification workflow, and prescription support |
-| **RiskAssessment** | Multi-category risk scoring (0-100), predictions with probabilities, and acknowledgeable alerts |
-| **InsuranceClaim** | Claims lifecycle management with internal audit trail tracking every status transition        |
-| **LabResult**      | Lab tests with per-parameter results, reference ranges, and normal/abnormal/critical status   |
-| **ResearchPaper**  | Research papers with text indexes for full-text search and user bookmarks                     |
-| **AuditLog**       | System-wide audit trail — user actions, modules, IP addresses, and user agents                |
+### Core Authentication
+
+**👥 User** — Primary authentication model
+```typescript
+{
+  name: string              // Full name
+  email: string             // Unique, lowercase
+  password: string          // bcrypt hashed (12 rounds), hidden by default
+  role: 'doctor' | 'patient' | 'researcher' | 'admin'
+  specialization?: string   // For doctors
+  licenseNumber?: string    // For doctors
+  phone?: string
+  authProvider: 'local' | 'google'  // OAuth support
+  isProfileComplete: boolean        // OAuth workflow flag
+  isActive: boolean         // Soft account disabling
+  createdAt: Date
+}
+```
+
+**🥼 Patient** — Extended medical profile (1:1 with User)
+```typescript
+{
+  userId: ObjectId          // Unique link to User
+  patientCode: string       // Auto-generated: PT-0001, PT-0002...
+  dateOfBirth: Date
+  gender: 'male' | 'female' | 'other'
+  bloodGroup: string
+  allergies: string[]       // Known allergies
+  chronicConditions: string[] // Used by risk scoring
+  insurance: {
+    provider: string
+    policyNumber: string
+    expiryDate: Date
+  }
+  medicalHistory: [{
+    condition: string
+    diagnosedDate: Date
+    status: 'active' | 'resolved' | 'chronic'
+    notes: string
+  }]
+  medications: [{
+    name: string
+    dosage: string
+    frequency: string
+    prescribedBy: ObjectId  // → User (doctor)
+    startDate: Date
+    endDate?: Date
+    isActive: boolean
+  }]
+  vitalSigns: [{ // Time-series data
+    recordedAt: Date
+    bloodPressure: { systolic: number, diastolic: number }
+    heartRate: number
+    temperature: number
+    weight: number
+    height: number
+    oxygenSaturation: number
+    recordedBy: ObjectId    // → User
+  }]
+  riskFactors: [{
+    factor: string
+    severity: 'low' | 'moderate' | 'high'
+    identifiedDate: Date
+  }]
+  emergencyContact: {
+    name: string
+    phone: string
+    relation: string
+  }
+}
+```
+
+### Clinical Documentation
+
+**📋 ClinicalNote** — SOAP-structured medical documentation
+```typescript
+{
+  patientId: ObjectId       // → Patient
+  providerId: ObjectId      // → User (attending doctor)
+  sessionDate: Date
+  noteType: 'consultation' | 'follow-up' | 'emergency' | 'procedure' | 'discharge'
+  
+  // SOAP Structure
+  chiefComplaint: string
+  historyOfPresentIllness: string
+  physicalExam: {
+    general: string
+    vitalSigns: object
+    findings: string[]
+  }
+  assessment: [{
+    diagnosis: string
+    icdCode?: string
+    severity: 'mild' | 'moderate' | 'severe'
+    confidence: number      // 0.0 - 1.0
+  }]
+  plan: [{
+    type: 'treatment' | 'medication' | 'follow-up' | 'referral' | 'lab'
+    description: string
+    priority: 'low' | 'normal' | 'high' | 'urgent'
+  }]
+  
+  // AI Processing
+  transcript?: string       // Original voice input
+  extractedEntities: [{
+    entity: string
+    type: 'symptom' | 'diagnosis' | 'medication' | 'procedure' | 'lab_test'
+    confidence: number
+    context: string
+  }]
+  
+  // Workflow
+  verificationStatus: 'pending' | 'verified' | 'rejected' | 'amended'
+  verifiedBy?: ObjectId    // → User
+  verifiedAt?: Date
+  
+  prescriptions: [{
+    medication: string
+    dosage: string
+    frequency: string
+    duration: string
+    instructions: string
+  }]
+  
+  followUpRequired: boolean
+  followUpDate?: Date
+}
+```
+
+**⚖️ RiskAssessment** — AI-generated health risk predictions
+```typescript
+{
+  patientId: ObjectId       // → Patient
+  assessmentDate: Date
+  
+  riskScores: [{
+    category: 'Cardiovascular' | 'Metabolic' | 'Respiratory'
+    score: number           // 0-100
+    level: 'low' | 'moderate' | 'high' | 'critical'
+    contributingFactors: string[]
+  }]
+  
+  overallRisk: 'low' | 'moderate' | 'high' | 'critical'
+  confidenceLevel: number   // 0.0 - 1.0
+  
+  predictions: [{
+    condition: string
+    probability: number     // 0.0 - 1.0
+    timeframe: string       // "6 months", "1 year", etc.
+    preventable: boolean
+  }]
+  
+  recommendations: [{
+    type: 'lifestyle' | 'medication' | 'monitoring' | 'referral'
+    description: string
+    priority: 'low' | 'normal' | 'high' | 'urgent'
+    evidenceBasis: string   // Citation (AHA 2024, etc.)
+  }]
+  
+  alerts: [{
+    type: 'warning' | 'critical' | 'info'
+    message: string
+    acknowledged: boolean
+    acknowledgedBy?: ObjectId // → User
+    acknowledgedAt?: Date
+  }]
+  
+  followUpRequired: boolean
+  nextAssessmentDate?: Date
+}
+```
+
+### Workflow Management
+
+**📅 Appointment** — Scheduling with conflict detection
+```typescript
+{
+  patientId: ObjectId       // → Patient
+  doctorId: ObjectId        // → User
+  scheduledDate: Date
+  duration: number          // Minutes (default: 30)
+  type: 'consultation' | 'follow-up' | 'emergency' | 'checkup' | 'procedure'
+  status: 'scheduled' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
+  priority: 'low' | 'normal' | 'high' | 'urgent'
+  notes?: string
+  reasonForVisit: string
+  
+  // Conflict Detection
+  isConflict: boolean
+  conflictReason?: string
+  
+  // Follow-up Tracking
+  parentAppointmentId?: ObjectId  // Links follow-ups
+  reminderSent: boolean
+  
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+**📋 InsuranceClaim** — Claims lifecycle with full audit trail
+```typescript
+{
+  claimNumber: string       // Unique identifier
+  patientId: ObjectId       // → Patient
+  providerId: ObjectId      // → User (doctor)
+  
+  diagnosisCodes: [{
+    code: string           // ICD-10 code
+    description: string
+  }]
+  procedureCodes: [{
+    code: string           // CPT code  
+    description: string
+    cost: number
+  }]
+  
+  totalAmount: number
+  submittedAmount: number
+  approvedAmount?: number
+  
+  status: 'draft' | 'submitted' | 'processing' | 'approved' | 'denied' | 'appealed'
+  
+  auditTrail: [{
+    action: string           // Status change
+    performedBy: ObjectId    // → User
+    timestamp: Date
+    notes?: string
+  }]
+  
+  submittedAt?: Date
+  processedAt?: Date
+  responseDate?: Date
+  denialReason?: string
+  
+  supportingDocuments: string[]  // File paths
+}
+```
+
+**🧬 LabResult** — Laboratory test management
+```typescript
+{
+  patientId: ObjectId       // → Patient
+  orderedBy: ObjectId       // → User (doctor)
+  testName: string
+  
+  results: [{
+    parameter: string
+    value: number | string
+    unit: string
+    referenceRange: string
+    status: 'normal' | 'abnormal' | 'critical'
+  }]
+  
+  status: 'ordered' | 'collected' | 'processing' | 'completed' | 'reviewed'
+  
+  orderedDate: Date
+  collectedDate?: Date
+  completedDate?: Date
+  reviewedDate?: Date
+  reviewedBy?: ObjectId     // → User
+  
+  abnormalFlags: string[]   // Flagged abnormal parameters
+  criticalValues: string[]  // Critical parameters requiring immediate attention
+  
+  interpretation: string
+  recommendations: string
+  
+  laboratoryId: string
+  technicianNotes?: string
+}
+```
+
+### Research & Knowledge
+
+**📜 ResearchPaper** — Medical literature database
+```typescript
+{
+  externalId: string        // PubMed ID, DOI, etc.
+  title: string            // Full-text indexed
+  abstract: string         // Full-text indexed
+  authors: string[]
+  journal: string
+  publishedDate: Date
+  category: 'Cardiology' | 'Neurology' | 'Oncology' | 'Pediatrics' | 'General'
+  
+  keyFindings: string[]
+  methodology: string
+  conclusions: string
+  
+  citations: number
+  impactFactor?: number
+  
+  savedBy: ObjectId[]      // → User (bookmarks)
+  
+  tags: string[]
+  doi?: string
+  pubmedLink?: string
+  fullTextAvailable: boolean
+}
+```
+
+### System Monitoring
+
+**📋 AuditLog** — Complete system audit trail
+```typescript
+{
+  userId?: ObjectId        // → User (null for system actions)
+  action: string           // Descriptive action
+  module: string          // Controller/area
+  details?: object        // Additional context
+  ipAddress: string
+  userAgent: string
+  timestamp: Date
+  
+  // Request tracking
+  method: string          // HTTP method
+  endpoint: string        // API endpoint
+  statusCode: number      // Response code
+  responseTime: number    // Milliseconds
+  
+  // Data changes (for sensitive operations)
+  beforeData?: object
+  afterData?: object
+}
+```
+
+### Database Indexes & Performance
+
+**Key Indexes:**
+- `Patient`: Compound index on `(userId, patientCode)`
+- `ClinicalNote`: Compound index on `(patientId, providerId, sessionDate)`
+- `RiskAssessment`: Single index on `(patientId, -assessmentDate)` for latest retrieval
+- `Appointment`: Compound index on `(doctorId, scheduledDate)` for conflict detection
+- `ResearchPaper`: Text index on `(title, abstract)` for full-text search
+- `AuditLog`: Compound index on `(timestamp, -userId)` for audit queries
 
 ---
 
-## Frontend Pages
+## 📱 Frontend Pages & Mobile Support
 
-| Page                | Route              | Description                                                              |
-|---------------------|--------------------|--------------------------------------------------------------------------|
-| **Login**           | `/login`           | Split-screen with branding panel showcasing 4 core AI capabilities       |
-| **Register**        | `/register`        | Multi-role registration with dynamic fields per role                     |
-| **Dashboard**       | `/dashboard`       | Auto-switches to role-specific dashboard (Doctor/Patient/Admin/Researcher)|
-| **Patients**        | `/patients`        | Patient list with search, stats overview, and detailed profile view      |
-| **Clinical Docs**   | `/clinical-docs`   | Note management with dual-mode creation (structured form / transcript)   |
-| **Translator**      | `/translator`      | Three-tab interface: Report Translation, Q&A, Medication Guide           |
-| **Predictive**      | `/predictive`      | Risk assessments with visual progress bars, predictions, and alert panel |
-| **Research**        | `/research`        | Paper search with category filters, trending topics, and bookmarks       |
-| **Workflow**        | `/workflow`        | Three-tab management: Appointments, Insurance Claims, Lab Results        |
+### Role-Based Navigation Structure
+
+| Page Group | Routes | Allowed Roles | Key Features |
+|------------|--------|---------------|-------------|
+| **Public** | `/login`, `/register` | None | OAuth + local auth, role selection |
+| **Dashboard** | `/dashboard` | All | Auto-switches to role-specific view |
+| **Patients** | `/patients` | doctor, admin | Search, profiles, medical history |
+| **Clinical** | `/clinical-docs` | doctor, admin | SOAP notes, voice transcription |
+| **Translation** | `/translator` | All | Medical → patient language, Q&A |
+| **Predictive** | `/predictive` | doctor, admin | Risk scoring, alert management |
+| **Research** | `/research` | doctor, researcher, admin | Paper search, evidence synthesis |
+| **Workflow** | `/workflow` | doctor, admin | Appointments, claims, labs |
+| **Agents** | `/agents` | All | Pipeline monitoring, telemetry |
+| **Pipeline** | `/pipeline` | doctor, admin | Real-time execution tracking |
+
+### Dashboard Variants by Role
+
+**🥼 Doctor Dashboard**
+- Today's schedule with patient conflicts
+- Patient count & quick patient search
+- Pending clinical notes requiring verification  
+- Active critical alerts requiring acknowledgment
+- Quick actions: New note, Schedule appointment, Run assessment
+
+**👤 Patient Dashboard**
+- Personal health score visualization
+- Vital signs trends (BP, weight, heart rate)
+- Upcoming appointments & medication reminders
+- Latest risk assessment with colored progress bars
+- Educational content based on conditions
+
+**🛡️ Admin Dashboard** 
+- System-wide metrics: users, patients, notes, alerts
+- Platform analytics: API usage, error rates, costs
+- User management: registrations, role changes
+- Quick management actions: Backup, cache clear
+
+**🔬 Researcher Dashboard**
+- Trending research topics with growth percentages
+- Personal bookmark collections
+- Recent evidence comparisons
+- Citation network analysis
+
+### 📱 Mobile App Features (Capacitor 8)
+
+**Native Capabilities:**
+- 📷 Camera integration for document capture
+- 🗺️ Geolocation for appointment check-ins
+- 🔔 Push notifications for critical alerts
+- 📋 Clipboard integration for easy data entry
+- 🔊 Haptic feedback for confirmations
+- 🌐 Network status detection
+- 📁 File system access for voice recordings
+- 📵 Device info for audit logging
+
+**Cross-Platform Deployment:**
+```bash
+# iOS Development
+npx cap add ios && npx cap open ios
+
+# Android Development
+npx cap add android && npx cap open android
+
+# Live reload during development
+npx cap run ios --livereload --external
+npx cap run android --livereload --external
+```
+
+## 👥 User Roles & Permissions (RBAC)
+
+CARENET AI implements **comprehensive Role-Based Access Control** across both backend middleware and frontend route guards:
+
+| Feature | Doctor | Patient | Researcher | Admin |
+|---------|:------:|:-------:|:----------:|:-----:|
+| **Dashboard Access** | ✅ Custom | ✅ Custom | ✅ Custom | ✅ Custom |
+| **Patient Records** | ✅ Full CRUD | ❌ Own only | ❌ None | ✅ Full CRUD |
+| **Clinical Documentation** | ✅ Create/Verify | ❌ View own | ❌ None | ✅ All access |
+| **Voice Transcription** | ✅ Full access | ❌ None | ❌ None | ✅ Full access |
+| **Medical Translation** | ✅ All features | ✅ Basic access | ✅ Research only | ✅ All features |
+| **Risk Assessment** | ✅ Run/Acknowledge | ❌ View own | ❌ None | ✅ Full access |
+| **Research Papers** | ✅ Search/Save | ❌ None | ✅ Full access | ✅ All access |
+| **Workflow Management** | ✅ Full CRUD | ❌ View own | ❌ None | ✅ Full access |
+| **Agent Pipeline** | ✅ Execute/Monitor | ❌ None | ❌ None | ✅ Full access |
+| **System Telemetry** | ✅ View metrics | ❌ None | ✅ Research metrics | ✅ Full analytics |
+
+### Authorization Enforcement Layers
+
+1. **Backend Middleware** (`auth.ts`)
+   - JWT verification
+   - Role-based route protection
+   - Resource ownership validation
+
+2. **Frontend Route Guards** (`ProtectedRoute.tsx`)
+   - Authentication state checks
+   - Role-based navigation hiding
+   - Automatic redirects for unauthorized access
+
+3. **Dynamic UI Components**
+   - Conditional rendering based on user role
+   - Feature-specific permission checks
+   - Role-appropriate action buttons
+
+## 🔒 Security & Compliance Features
+
+### Authentication & Authorization
+- **Password Security**: bcryptjs with 12-round salt hashing
+- **JWT Tokens**: 30-day expiration with secure secret (32+ chars required)
+- **OAuth Integration**: Google OAuth 2.0 with profile completion flow
+- **Role-Based Access**: 4-tier authorization (doctor/patient/researcher/admin)
+- **Session Management**: Auto-logout on token expiration, secure storage
+
+### API Security Hardening
+
+| Security Layer | Implementation | Configuration |
+|----------------|----------------|---------------|
+| **CORS Protection** | Strict origin validation | `CLIENT_URL` whitelist only |
+| **Rate Limiting** | express-rate-limit | Global: 100 req/15min, Auth: 10 attempts/15min |
+| **Input Sanitization** | mongo-sanitize | NoSQL injection prevention |
+| **Security Headers** | Helmet.js | CSP, HSTS (1 year), referrer policy |
+| **Body Size Limits** | Express built-in | 100KB max (DoS prevention) |
+| **Error Handling** | Custom middleware | Stack traces only in development |
+
+### Audit & Compliance
+
+**📋 Complete Audit Trail** (`AuditLog` model):
+- Every authenticated action logged
+- User ID, IP address, user-agent tracking
+- Module, action type, and timestamp
+- Request/response tracking with performance metrics
+- Data change tracking for sensitive operations
+
+**🏥 HIPAA Considerations**:
+- Comprehensive audit logging for medical data access
+- Role-based access control for patient information
+- Encryption in transit (TLS) and at rest (MongoDB)
+- Data model supports field-level encryption
+- User activity monitoring and alerting
+
+### Environment Security
+
+**⚠️ Production Requirements**:
+```env
+# Strong authentication
+JWT_SECRET=minimum-32-character-secure-secret-key
+
+# Database security  
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/carenet?retryWrites=true&w=majority
+
+# HTTPS-only cookies in production
+NODE_ENV=production
+CLIENT_URL=https://carenet-ai.com
+
+# API keys rotation
+AWS_ACCESS_KEY_ID=rotated-monthly
+GROQ_API_KEY=rate-limited-production-key
+```
+
+## 🚀 Deployment & Production
+
+### Docker Deployment
+
+**Multi-stage Dockerfile optimizations**:
+- Node 20-alpine base (minimal attack surface)
+- Non-root `carenet` user for security
+- Health check endpoint integration
+- Production dependency optimization
+
+```dockerfile
+# Backend Dockerfile
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+FROM node:20-alpine AS production
+RUN addgroup -g 1001 -S carenet && adduser -S carenet -u 1001
+WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
+COPY . .
+USER carenet
+EXPOSE 5000
+HEALTHCHECK CMD curl -f http://localhost:5000/api/health || exit 1
+CMD ["npm", "start"]
+```
+
+### AWS Deployment Options
+
+**☁️ Recommended AWS Architecture**:
+- **ECS Fargate**: Serverless container deployment
+- **Application Load Balancer**: HTTPS termination, health checks
+- **DocumentDB**: MongoDB-compatible managed database
+- **CloudWatch**: Logging and monitoring
+- **Route 53**: DNS and SSL certificate management
+
+**💰 Cost Optimization**:
+- Use Nova Lite model ($0.30/pipeline vs $0.52)
+- Implement request caching for frequent queries
+- Auto-scaling based on CPU/memory utilization
+- Spot instances for non-critical workloads
+
+### Performance & Monitoring
+
+**📈 Key Performance Metrics**:
+- Agent pipeline execution time (~3 minutes average)
+- Database query performance (MongoDB indexes)
+- API response times (95th percentile < 500ms)
+- Error rates by endpoint and user role
+
+**🔍 Health Monitoring**:
+- `/api/health` endpoint with detailed status
+- AWS Bedrock service availability checks
+- Database connection health
+- Agent telemetry and success rates
+
+### CI/CD Pipeline Integration
+
+**GitHub Actions Workflow**:
+```yaml
+name: Deploy CARENET AI
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build and test
+        run: |
+          cd backend && npm test
+          cd ../frontend && npm test
+      - name: Deploy to AWS ECS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        run: |
+          aws ecs update-service --cluster carenet --service carenet-backend
+```
 
 ---
 
-## Security
+## 🚀 Scripts & Development Commands
 
-- **Password Hashing** — bcrypt with a salt factor of 12
-- **JWT Authentication** — 30-day token expiration with Bearer token scheme
-- **Role-Based Authorization** — Dual enforcement at middleware and UI levels
-- **CORS Configuration** — Restricted to configured `CLIENT_URL` origin with credentials support
-- **Audit Logging** — All authenticated actions logged with user ID, IP address, user-agent, module, and action
-- **Password Protection** — Password field excluded from queries by default (`select: false`)
-- **Active Status Check** — Disabled accounts are rejected at the authentication middleware level
-- **Input Validation** — Request body size limited to 10MB; structured validation on user inputs
-- **Error Handling** — Global error handler with stack traces only in development mode
-- **Auto-Logout** — Frontend automatically clears credentials and redirects on 401 responses
+### Backend Scripts (`backend/package.json`)
+
+| Command | Script | Description |
+|---------|--------| ------------|
+| `npm run dev` | `tsx watch index.ts` | **Development server** with hot reload |
+| `npm run build` | `tsc` | **Compile TypeScript** to `dist/` directory |
+| `npm start` | `node dist/index.js` | **Run production** build |
+| `npm test` | `jest` | **Run test suite** (if configured) |
+| `npm run test:agents` | `tsx scripts/testAllAgents.ts` | **Test all 5 AI agents** sequentially |
+| `npm run test:bedrock` | `tsx scripts/testBedrock.ts` | **Test AWS Bedrock** connectivity |
+| `npm run backfill` | `tsx scripts/backfillPatientCodes.ts` | **Migrate patient codes** (PT-0001 format) |
+
+### Frontend Scripts (`frontend/package.json`)
+
+| Command | Script | Description |
+|---------|--------| ------------|
+| `npm run dev` | `vite` | **Development server** (port 5173) with API proxy |
+| `npm run build` | `tsc -b && vite build` | **Production build** with type checking |
+| `npm run preview` | `vite preview` | **Preview production** build locally |
+| `npm run lint` | `eslint .` | **Code quality** checks with ESLint |
+| `npm run lint:fix` | `eslint . --fix` | **Auto-fix** ESLint issues |
+
+### Mobile Development Commands
+
+| Platform | Command | Description |
+|----------|---------|-------------|
+| **iOS** | `npx cap add ios && npx cap open ios` | **Setup and launch** Xcode project |
+| **Android** | `npx cap add android && npx cap open android` | **Setup and launch** Android Studio |
+| **Live Reload** | `npx cap run ios --livereload --external` | **Development** with live reload |
+| **Build** | `npx cap build ios` | **Production build** for App Store |
+
+### Production Deployment
+
+| Environment | Commands | Notes |
+|-------------|----------|-------|
+| **Docker** | `docker-compose up --build` | Complete stack deployment |
+| **AWS ECS** | `aws ecs update-service --cluster carenet` | Container orchestration |
+| **Heroku** | `git push heroku main` | Platform-as-a-service deployment |
+| **PM2** | `pm2 start ecosystem.config.js` | Process management |
 
 ---
 
-## Scripts Reference
+## 🐛 Troubleshooting
 
-### Backend (`backend/`)
+### Common Issues & Solutions
 
-| Script         | Command              | Description                              |
-|----------------|----------------------|------------------------------------------|
-| `npm run dev`  | `tsx watch index.ts` | Start dev server with hot reload         |
-| `npm run build`| `tsc`                | Compile TypeScript to `dist/`            |
-| `npm start`    | `node dist/index.js` | Run production build                     |
+**❌ Agent Pipeline Failures**
+```bash
+# Check AWS credentials
+npm run test:bedrock
 
-### Frontend (`frontend/`)
+# Test individual agents
+npm run test:agents
 
-| Script           | Command               | Description                             |
-|------------------|------------------------|-----------------------------------------|
-| `npm run dev`    | `vite`                 | Start Vite dev server (port 5173)       |
-| `npm run build`  | `tsc -b && vite build` | Type-check and build for production     |
-| `npm run lint`   | `eslint .`             | Run ESLint across the codebase          |
-| `npm run preview`| `vite preview`         | Preview production build locally        |
+# Clear pipeline cache
+curl -X DELETE http://localhost:5000/api/pipeline/cache/PATIENT_ID
+```
+
+**❌ Authentication Problems**
+```bash
+# Verify JWT secret strength
+echo $JWT_SECRET | wc -c  # Should be 32+
+
+# Check token expiration
+curl -H "Authorization: Bearer TOKEN" http://localhost:5000/api/auth/me
+```
+
+**❌ Database Connection Issues**
+```bash
+# Test MongoDB connectivity
+mongo $MONGO_URI --eval "db.adminCommand('ping')"
+
+# Check connection string format
+echo $MONGO_URI | grep -E '^mongodb(\+srv)?://'
+```
+
+**❌ Mobile Build Problems**
+```bash
+# Clean Capacitor cache
+npx cap clean
+npx cap sync
+
+# Rebuild native projects
+npx cap add ios --force
+npx cap add android --force
+```
+
+### Performance Optimization
+
+**🚀 Backend Optimization**:
+- Enable MongoDB connection pooling
+- Implement Redis for session storage
+- Add response compression middleware
+- Use CDN for static assets
+
+**🚀 Frontend Optimization**:
+- Implement React.lazy() for code splitting
+- Add service worker for offline support
+- Optimize bundle size with tree shaking
+- Use React Query for data caching
 
 ---
 
-## Contributing
+## 🤝 Contributing
+
+### Development Workflow
 
 1. **Fork** the repository
-2. **Create** a feature branch: `git checkout -b feature/your-feature-name`
-3. **Commit** your changes: `git commit -m "feat: add your feature"`
-4. **Push** to the branch: `git push origin feature/your-feature-name`
-5. **Open** a Pull Request
+2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
+3. **Install** dependencies: `npm install` (both backend and frontend)
+4. **Set up** environment: Copy `.env.example` to `.env` and configure
+5. **Develop** with hot reload: `npm run dev` in both directories
+6. **Test** your changes: `npm test` and manual testing
+7. **Commit** your changes: `git commit -m "feat: add amazing feature"`
+8. **Push** to your branch: `git push origin feature/amazing-feature`
+9. **Open** a Pull Request with detailed description
 
-Please follow the existing code style and ensure all TypeScript types are properly defined.
+### Code Standards
+
+- **TypeScript**: Strict mode enabled, no `any` types
+- **ESLint**: Follow the project's linting rules
+- **Prettier**: Code formatting consistency
+- **Conventional Commits**: Use semantic commit messages
+- **Testing**: Add tests for new features
+- **Documentation**: Update README for new endpoints/features
+
+### Pull Request Guidelines
+
+- ✅ Include clear description of changes
+- ✅ Add appropriate labels (feature, bugfix, docs)
+- ✅ Ensure all CI checks pass
+- ✅ Update documentation if needed
+- ✅ Test on both desktop and mobile
+- ✅ Verify agent pipeline functionality
 
 ---
 
-## License
+## 📄 License
 
-This project is licensed under the **ISC License**.
+This project is licensed under the **ISC License** - see the LICENSE file for details.
+
+---
+
+## 🚀 Roadmap
+
+### Upcoming Features
+
+**Q2 2026**:
+- [ ] Real-time collaboration on clinical notes
+- [ ] Advanced analytics dashboard with ML insights
+- [ ] Integration with HL7 FHIR standards
+- [ ] Multi-language support for international deployment
+
+**Q3 2026**:
+- [ ] Wearable device integration (Apple Health, Fitbit)
+- [ ] Telemedicine video calling features
+- [ ] Advanced AI models for diagnostic assistance
+- [ ] Blockchain-based patient consent management
+
+**Q4 2026**:
+- [ ] Federated learning across healthcare networks
+- [ ] Genomic data integration and analysis
+- [ ] Advanced predictive models for population health
+- [ ] Enterprise SSO and Active Directory integration
 
 ---
 
 <p align="center">
-  Built with ❤️ for better healthcare
+  <strong>Built with ❤️ for better healthcare</strong><br>
+  <em>Powered by AWS Bedrock • Secured by design • Mobile-first approach</em>
 </p>
-# CARENET AI — Healthcare Assistant Platform
 
-> **AI-for-Bharath** | Full-Stack AI-Powered Healthcare Management System
-
----
-
-## Table of Contents
-
-1. [Project Overview](#project-overview)
-2. [Tech Stack](#tech-stack)
-3. [Project Structure](#project-structure)
-4. [Database & Models](#database--models)
-5. [Backend API Routes](#backend-api-routes)
-6. [Frontend Pages & Routing](#frontend-pages--routing)
-7. [Authentication & Security](#authentication--security)
-8. [AI & Analytical Features](#ai--analytical-features)
-9. [Running the Project](#running-the-project)
-
----
-
-## Project Overview
-
-CARENET AI is a full-stack healthcare management platform designed for Indian healthcare (`AI-for-Bharath`). It serves **four distinct user roles** — Doctors, Patients, Researchers, and Admins — with a unified dashboard tailored to each role.
-
-**Core capabilities:**
-- Clinical documentation with transcript processing
-- AI-powered predictive health risk scoring
-- Medical term translator (plain-language for patients)
-- Research paper search & evidence comparison
-- Hospital workflow — appointments, lab results, insurance claims
-- Role-based access control throughout
-
----
-
-## Tech Stack
-
-### Frontend
-
-| Technology | Version | Purpose |
-|---|---|---|
-| React | 19 | UI framework |
-| TypeScript | ~5.9 | Type safety |
-| Vite | 7 | Build tool & dev server |
-| Tailwind CSS | v4 | Styling |
-| React Router | v7 | Client-side routing |
-| Axios | ^1.13 | HTTP client |
-| Recharts | ^3.7 | Data visualization / charts |
-| Headless UI | ^2.2 | Accessible UI components |
-| Lucide React | ^0.575 | Icon library |
-| React Hot Toast | ^2.6 | Notifications |
-
-### Backend
-
-| Technology | Version | Purpose |
-|---|---|---|
-| Node.js + Express | Express 5 | REST API server |
-| TypeScript | ^5.9 | Type safety |
-| tsx | ^4.21 | Dev runtime (ts-node alternative) |
-| MongoDB + Mongoose | Mongoose 9 | Database & ODM |
-| jsonwebtoken | ^9.0 | JWT authentication |
-| bcryptjs | ^3.0 | Password hashing (salt: 12) |
-| dotenv | ^17.3 | Environment variables |
-| cors | ^2.8 | Cross-origin requests |
-
----
-
-## Project Structure
-
-```
-AI-for-Bharath/
+<p align="center">
+  <a href="#top">🔝 Back to Top</a>
+</p>
 ├── backend/
 │   ├── index.ts                  # App entry point — Express setup, middleware, routes
 │   ├── package.json

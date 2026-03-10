@@ -799,7 +799,7 @@ export default function LandingPage() {
           <Reveal className="text-center mb-16">
             <HandwrittenLabel className="text-lg text-purple-400 mb-4">The Platform</HandwrittenLabel>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              Six AI agents.<br className="hidden sm:block" /> One <span className="text-purple-400">seamless</span> pipeline.
+              Five AI agents.<br className="hidden sm:block" /> One <span className="text-purple-400">seamless</span> pipeline.
             </h2>
             <p className="mt-4 text-lg text-slate-400 max-w-2xl mx-auto">
               Each module is powered by specialized AI — working together to automate the entire clinical workflow.
