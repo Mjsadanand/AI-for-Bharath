@@ -1124,17 +1124,39 @@ export default function LandingPage() {
 
             {/* Link columns */}
             {[
-              { title: 'Product', links: ['Features', 'Pipeline', 'Pricing', 'Changelog'] },
-              { title: 'Legal', links: ['Privacy', 'Terms', 'HIPAA', 'Security'] },
+              {
+                title: 'Product',
+                links: [
+                  { label: 'Features' },
+                  { label: 'Pipeline' },
+                  { label: 'Pricing' },
+                  { label: 'Changelog' },
+                ],
+              },
+              {
+                title: 'Legal',
+                links: [
+                  { label: 'Privacy', to: '/privacy-policy' },
+                  { label: 'Terms', to: '/terms-of-service' },
+                  { label: 'HIPAA' },
+                  { label: 'Security' },
+                ],
+              },
             ].map((col) => (
               <div key={col.title} className="md:col-span-3">
                 <p className="text-sm font-semibold text-slate-200 mb-4">{col.title}</p>
                 <ul className="grid grid-cols-2 gap-x-6 gap-y-2.5">
                   {col.links.map((link) => (
-                    <li key={link}>
-                      <a href="#" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
-                        {link}
-                      </a>
+                    <li key={link.label}>
+                      {link.to ? (
+                        <Link to={link.to} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
+                          {link.label}
+                        </Link>
+                      ) : (
+                        <a href="#" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
+                          {link.label}
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>
