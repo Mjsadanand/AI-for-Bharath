@@ -9,6 +9,8 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import SelectRolePage from './pages/auth/SelectRolePage';
 import CompleteProfilePage from './pages/auth/CompleteProfilePage';
+import TermsOfService from './pages/legal/TermsOfService';
+import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import ClinicalDocsPage from './pages/clinical/ClinicalDocsPage';
 import TranslatorPage from './pages/translator/TranslatorPage';
@@ -38,6 +40,8 @@ export default function App() {
       {/* Public routes */}
       <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={getDefaultRedirect()} replace />} />
       <Route path="/register" element={!user ? <RegisterPage /> : <Navigate to={getDefaultRedirect()} replace />} />
+  <Route path="/terms-of-service" element={<TermsOfService />} />
+  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
       {/* Google OAuth flow — role selection & profile completion (requires login, but not complete profile) */}
       <Route path="/select-role" element={<SelectRolePage />} />
